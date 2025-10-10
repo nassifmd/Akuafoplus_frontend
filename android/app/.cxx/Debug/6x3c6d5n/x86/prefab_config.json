@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "prefabPath": "/Users/nassifdauda/.gradle/caches/modules-2/files-2.1/com.google.prefab/cli/2.1.0/aa32fec809c44fa531f01dcfb739b5b3304d3050/cli-2.1.0-all.jar",
+  "packages": [
+    "/Users/nassifdauda/.gradle/caches/8.14.3/transforms/018fdeb148f60bf9b60dbe1c3e3b9f06/transformed/react-android-0.78.0-debug/prefab",
+    "/Applications/MAMP/htdocs/agricconnect_project/AkuafoPlus/node_modules/react-native-reanimated/android/build/intermediates/prefab_package/debug/prefab",
+    "/Users/nassifdauda/.gradle/caches/8.14.3/transforms/f36a84658748fd9fbb5c01b578c69743/transformed/hermes-android-0.78.0-debug/prefab",
+    "/Users/nassifdauda/.gradle/caches/8.14.3/transforms/c9cc7f02c1096072ce6b4ec94846a952/transformed/fbjni-0.7.0/prefab"
+  ]
+}

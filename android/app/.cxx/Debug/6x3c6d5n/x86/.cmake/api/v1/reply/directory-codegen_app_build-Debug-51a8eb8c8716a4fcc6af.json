@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "codegen_app_build",
+		"source" : "/Applications/MAMP/htdocs/agricconnect_project/AkuafoPlus/android/app/build/generated/source/codegen/jni"
+	}
+}
