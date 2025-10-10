@@ -59,7 +59,7 @@
       "platforms": {
         "ios": {
           "podspecPath": "/Applications/MAMP/htdocs/agricconnect_project/AkuafoPlus/node_modules/@react-native-community/datetimepicker/RNDateTimePicker.podspec",
-          "version": "8.4.4",
+          "version": "8.4.5",
           "configurations": [],
           "scriptPhases": []
         },
@@ -84,7 +84,7 @@
       "platforms": {
         "ios": {
           "podspecPath": "/Applications/MAMP/htdocs/agricconnect_project/AkuafoPlus/node_modules/@react-native-picker/picker/RNCPicker.podspec",
-          "version": "2.11.1",
+          "version": "2.11.2",
           "configurations": [],
           "scriptPhases": []
         },
@@ -112,7 +112,7 @@
       "platforms": {
         "ios": {
           "podspecPath": "/Applications/MAMP/htdocs/agricconnect_project/AkuafoPlus/node_modules/react-native-config/react-native-config.podspec",
-          "version": "1.5.6",
+          "version": "1.5.9",
           "configurations": [],
           "scriptPhases": []
         },
@@ -121,6 +121,7 @@
           "packageImportPath": "import com.lugg.RNCConfig.RNCConfigPackage;",
           "packageInstance": "new RNCConfigPackage()",
           "buildTypes": [],
+          "libraryName": "RNCConfigModule",
           "componentDescriptors": [],
           "cmakeListsPath": "/Applications/MAMP/htdocs/agricconnect_project/AkuafoPlus/node_modules/react-native-config/android/build/generated/source/codegen/jni/CMakeLists.txt",
           "cxxModuleCMakeListsModuleName": null,
@@ -240,7 +241,7 @@
       "platforms": {
         "ios": {
           "podspecPath": "/Applications/MAMP/htdocs/agricconnect_project/AkuafoPlus/node_modules/react-native-maps/react-native-maps.podspec",
-          "version": "1.25.3",
+          "version": "1.26.14",
           "configurations": [],
           "scriptPhases": []
         },
@@ -325,7 +326,7 @@
       "platforms": {
         "ios": {
           "podspecPath": "/Applications/MAMP/htdocs/agricconnect_project/AkuafoPlus/node_modules/react-native-reanimated/RNReanimated.podspec",
-          "version": "3.19.1",
+          "version": "3.19.2",
           "configurations": [],
           "scriptPhases": []
         },
@@ -350,7 +351,7 @@
       "platforms": {
         "ios": {
           "podspecPath": "/Applications/MAMP/htdocs/agricconnect_project/AkuafoPlus/node_modules/react-native-safe-area-context/react-native-safe-area-context.podspec",
-          "version": "5.6.0",
+          "version": "5.6.1",
           "configurations": [],
           "scriptPhases": []
         },
@@ -378,7 +379,7 @@
       "platforms": {
         "ios": {
           "podspecPath": "/Applications/MAMP/htdocs/agricconnect_project/AkuafoPlus/node_modules/react-native-screens/RNScreens.podspec",
-          "version": "4.13.1",
+          "version": "4.16.0",
           "configurations": [],
           "scriptPhases": []
         },
@@ -441,7 +442,7 @@
       "platforms": {
         "ios": {
           "podspecPath": "/Applications/MAMP/htdocs/agricconnect_project/AkuafoPlus/node_modules/react-native-webview/react-native-webview.podspec",
-          "version": "13.15.0",
+          "version": "13.16.0",
           "configurations": [],
           "scriptPhases": []
         },

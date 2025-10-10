@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Dimensions } from "react-native";
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Dimensions, Modal, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import LinearGradient from 'react-native-linear-gradient';
@@ -35,7 +35,8 @@ const toAbsoluteUrl = (u?: string) => {
   return `${apiOrigin}/${u}`;
 };
 
-const Table = ({ table }: { table: TableData }) => {
+// Memoized table for perf on large datasets - UPDATED FOR RESPONSIVENESS
+const Table = React.memo(({ table }: { table: TableData }) => {
   if (!table.headers || !table.rows) {
     return (
       <View style={styles.errorContainer}>
@@ -45,37 +46,88 @@ const Table = ({ table }: { table: TableData }) => {
     );
   }
 
+  // Calculate column widths based on content
+  const columnWidths = React.useMemo(() => {
+    const widths: number[] = [];
+    
+    // Initialize with header widths
+    table.headers.forEach((header, colIndex) => {
+      const headerWidth = Math.max(80, header.length * 10 + 32); // Minimum 80, based on text length
+      widths[colIndex] = headerWidth;
+    });
+    
+    // Adjust based on row content
+    table.rows.forEach(row => {
+      row.forEach((cell, colIndex) => {
+        const cellText = String(cell);
+        const cellWidth = Math.max(60, cellText.length * 8 + 24); // Minimum 60, based on text length
+        if (cellWidth > widths[colIndex]) {
+          widths[colIndex] = cellWidth;
+        }
+      });
+    });
+    
+    // Cap maximum width to prevent overflow
+    const maxWidth = width * 0.8; // 80% of screen width max per column
+    return widths.map(w => Math.min(w, maxWidth));
+  }, [table.headers, table.rows]);
+
+  const tableWidth = React.useMemo(
+    () => columnWidths.reduce((sum, width) => sum + width, 0),
+    [columnWidths]
+  );
+
   return (
     <View style={styles.tableContainer}>
       <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
+        horizontal
+        nestedScrollEnabled
+        directionalLockEnabled
+        scrollEventThrottle={16}
+        showsHorizontalScrollIndicator={true}
         contentContainerStyle={styles.tableScrollContent}
       >
         <View>
-          <View style={styles.tableRow}>
+          {/* Table Header */}
+          <View style={[styles.tableRow, { width: tableWidth }]}>
             {table.headers.map((header, index) => (
               <LinearGradient
                 key={`header-${index}`}
                 colors={['#388E3C', '#2E7D32']}
                 style={[
                   styles.tableHeaderCell,
+                  { width: columnWidths[index] },
                   index === 0 && styles.firstHeaderCell,
                   index === table.headers.length - 1 && styles.lastHeaderCell
                 ]}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               >
-                <Text style={styles.tableHeaderText}>{header}</Text>
+                <Text 
+                  style={styles.tableHeaderText}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                >
+                  {header}
+                </Text>
               </LinearGradient>
             ))}
           </View>
           
-          <ScrollView style={styles.tableBodyScroll}>
+          {/* Table Body */}
+          <ScrollView
+            style={styles.tableBodyScroll}
+            contentContainerStyle={{ width: tableWidth }}
+            nestedScrollEnabled
+            directionalLockEnabled
+            showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="handled"
+          >
             {table.rows.map((row, rowIndex) => (
               <TouchableOpacity 
                 key={`row-${rowIndex}`} 
                 style={[
                   styles.tableRow,
+                  { width: tableWidth },
                   rowIndex % 2 === 0 ? styles.evenRow : styles.oddRow,
                   rowIndex === table.rows.length - 1 && styles.lastRow
                 ]}
@@ -86,11 +138,18 @@ const Table = ({ table }: { table: TableData }) => {
                     key={`cell-${rowIndex}-${cellIndex}`} 
                     style={[
                       styles.tableCell,
+                      { width: columnWidths[cellIndex] },
                       cellIndex === 0 && styles.firstCell,
                       cellIndex === row.length - 1 && styles.lastCell
                     ]}
                   >
-                    <Text style={styles.tableCellText}>{String(cell)}</Text>
+                    <Text 
+                      style={styles.tableCellText}
+                      numberOfLines={3}
+                      ellipsizeMode="tail"
+                    >
+                      {String(cell)}
+                    </Text>
                   </View>
                 ))}
               </TouchableOpacity>
@@ -100,13 +159,29 @@ const Table = ({ table }: { table: TableData }) => {
       </ScrollView>
     </View>
   );
-};
+});
 
 const KnowledgeContentScreen = ({ route, navigation }: any) => {
   const { item } = route.params;
   const categoryInfo = getCategoryInfo(item.category);
   const [showImage, setShowImage] = React.useState(true);
   const imageUri = toAbsoluteUrl(item.image);
+
+  // New: share/bookmark, image modal, expandable content
+  const [bookmarked, setBookmarked] = React.useState(false);
+  const [imageModalVisible, setImageModalVisible] = React.useState(false);
+  const [contentExpanded, setContentExpanded] = React.useState(false);
+  const [contentTruncated, setContentTruncated] = React.useState(false);
+
+  const onShare = async () => {
+    const link = toAbsoluteUrl(item.link || "");
+    try {
+      await Share.share({
+        message: `${item.title}${link ? `\n${link}` : ""}`,
+        title: item.title,
+      });
+    } catch {}
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -120,18 +195,43 @@ const KnowledgeContentScreen = ({ route, navigation }: any) => {
           onPress={() => navigation.goBack()} 
           style={styles.backButton}
           hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <Icon name="arrow-back" size={24} color="#37474F" />
         </TouchableOpacity>
         <Text style={styles.headerText} numberOfLines={1} ellipsizeMode="tail">
           {item.title}
         </Text>
-        <View style={styles.headerRightPlaceholder} />
+        <View style={styles.headerActions}>
+          <TouchableOpacity 
+            onPress={onShare}
+            style={styles.headerActionButton}
+            accessibilityRole="button"
+            accessibilityLabel="Share content"
+          >
+            <Icon name="share" size={20} color="#37474F" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => setBookmarked(!bookmarked)}
+            style={styles.headerActionButton}
+            accessibilityRole="button"
+            accessibilityLabel={bookmarked ? "Remove bookmark" : "Add bookmark"}
+          >
+            <Icon 
+              name={bookmarked ? "bookmark" : "bookmark-border"} 
+              size={20} 
+              color={bookmarked ? "#FFC107" : "#37474F"} 
+            />
+          </TouchableOpacity>
+        </View>
       </LinearGradient>
 
       <ScrollView 
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
       >
         {/* Category badge with gradient */}
         <LinearGradient
@@ -152,7 +252,11 @@ const KnowledgeContentScreen = ({ route, navigation }: any) => {
 
         {/* Hero image with modern styling */}
         {imageUri && showImage && (
-          <View style={styles.imageContainer}>
+          <TouchableOpacity 
+            style={styles.imageContainer}
+            onPress={() => setImageModalVisible(true)}
+            activeOpacity={0.9}
+          >
             <Image 
               source={{ uri: imageUri }}
               style={styles.image}
@@ -164,7 +268,7 @@ const KnowledgeContentScreen = ({ route, navigation }: any) => {
               style={styles.imageOverlay}
               start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
             />
-          </View>
+          </TouchableOpacity>
         )}
         
         {/* Content card with improved typography */}
@@ -174,6 +278,17 @@ const KnowledgeContentScreen = ({ route, navigation }: any) => {
           <Text style={styles.content}>
             {item.content}
           </Text>
+          
+          {item.content && item.content.length > 300 && (
+            <TouchableOpacity 
+              onPress={() => setContentExpanded(!contentExpanded)}
+              style={styles.readMoreBtn}
+            >
+              <Text style={styles.readMoreText}>
+                {contentExpanded ? 'Read Less' : 'Read More'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
         
         {/* Tables section with modern styling */}
@@ -217,6 +332,36 @@ const KnowledgeContentScreen = ({ route, navigation }: any) => {
           </View>
         ) : null}
       </ScrollView>
+
+      {/* Image modal for hero image */}
+      <Modal
+        visible={imageModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setImageModalVisible(false)}
+      >
+        <TouchableOpacity 
+          style={styles.imageModalBackdrop} 
+          activeOpacity={1}
+          onPress={() => setImageModalVisible(false)}
+        >
+          <View style={styles.imageModalContent}>
+            <Image 
+              source={{ uri: imageUri }}
+              style={styles.imageModalImage}
+              resizeMode="contain"
+            />
+            <TouchableOpacity
+              onPress={() => setImageModalVisible(false)}
+              style={styles.modalCloseBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Close image"
+            >
+              <Icon name="close" size={24} color="white" />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -258,8 +403,16 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
     maxWidth: width - 120,
   },
-  headerRightPlaceholder: {
-    width: 40,
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerActionButton: {
+    padding: 8,
+    borderRadius: 16,
+    backgroundColor: '#EEEEEE',
+    marginLeft: 8,
   },
   container: {
     paddingBottom: 40,
@@ -379,17 +532,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 2,
+    maxWidth: '100%',
+  },
+  tableScrollContent: {
+    flexGrow: 1,
   },
   tableRow: {
     flexDirection: 'row',
+    minHeight: 50,
   },
   tableHeaderCell: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    minWidth: 140,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     borderRightWidth: 1,
     borderRightColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 50,
   },
   firstHeaderCell: {
     borderTopLeftRadius: 11,
@@ -404,16 +563,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
     letterSpacing: 0.5,
+    flexShrink: 1,
   },
   tableCell: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    minWidth: 140,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     borderRightWidth: 1,
     borderRightColor: '#EEEEEE',
     borderBottomWidth: 1,
     borderBottomColor: '#EEEEEE',
     justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 50,
   },
   firstCell: {
     borderLeftWidth: 0,
@@ -428,6 +589,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#37474F',
     fontSize: 14,
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   errorContainer: {
     padding: 16,
@@ -444,9 +607,6 @@ const styles = StyleSheet.create({
     color: '#D32F2F',
     marginLeft: 10,
     fontWeight: '500',
-  },
-  tableScrollContent: {
-    minWidth: '100%',
   },
   tableBodyScroll: {
     maxHeight: 400,
@@ -478,6 +638,42 @@ const styles = StyleSheet.create({
     color: '#455A64',
     fontSize: 14,
     fontWeight: '500',
+  },
+  readMoreBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: '#E8F5E9',
+  },
+  readMoreText: {
+    color: '#2E7D32',
+    fontWeight: '600',
+  },
+  imageModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalContent: {
+    width: '100%',
+    height: '85%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalImage: {
+    width: '100%',
+    height: '100%',
+  },
+  modalCloseBtn: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    backgroundColor: 'rgba(55,71,79,0.6)',
+    borderRadius: 20,
+    padding: 8,
   },
 });
 

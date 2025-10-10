@@ -796,7 +796,7 @@ const ProfitCalculatorScreen = () => {
             </View>
             
             <View style={styles.row}>
-              <View style={[styles.inputContainer, {flex: 2}]}>
+              <View style={[styles.inputContainer, {flex: 1}]}>
                 <Icon name="square-foot" size={20} color="#666" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}

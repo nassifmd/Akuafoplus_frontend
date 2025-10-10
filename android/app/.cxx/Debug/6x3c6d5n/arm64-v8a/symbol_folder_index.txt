@@ -1,1 +1,0 @@
-/Applications/MAMP/htdocs/agricconnect_project/AkuafoPlus/android/app/build/intermediates/cxx/Debug/6x3c6d5n/obj/arm64-v8a

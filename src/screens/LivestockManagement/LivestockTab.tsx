@@ -289,27 +289,39 @@ const LivestockTab = ({ navigation }: any) => {
   const updateAnimal = async () => {
     if (!selectedAnimal) return;
 
+    // Backend-allowed fields: name, breed, status, colorMarkings, currentValue, insuranceInfo
+    const allowedBreeds = ["White Fulani", "Sokoto Gudali", "Ndama", "Holstein", "Jersey"];
+    if (!allowedBreeds.includes(animalForm.breed)) {
+      Alert.alert("Error", "Selected breed is not supported by the system.");
+      return;
+    }
+
+    const payload: any = {
+      breed: animalForm.breed,
+      status: animalForm.status,
+    };
+    if (animalForm.name?.trim()) payload.name = animalForm.name.trim();
+    if (animalForm.colorMarkings?.trim()) payload.colorMarkings = animalForm.colorMarkings.trim();
+    // Optionally include currentValue/insuranceInfo here if you add them to the form
+
     setLoading(true);
     try {
-      const response = await axios.put(
+      await axios.put(
         `${API_URL}/${selectedAnimal._id}`,
-        {
-          ...animalForm,
-          dob: animalForm.dob.toISOString(),
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
+        payload,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
       );
 
       Alert.alert("Success", "Animal updated successfully");
       setModalVisible(false);
       fetchAnimals(accessToken);
-    } catch (error) {
-      console.error("Error updating animal:", error);
-      Alert.alert("Error", "Failed to update animal");
+    } catch (error: any) {
+      console.error("Error updating animal:", error?.response?.data || error?.message);
+      const serverMsg =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        "Failed to update animal";
+      Alert.alert("Error", serverMsg);
     } finally {
       setLoading(false);
     }
@@ -2167,6 +2179,9 @@ const LivestockTab = ({ navigation }: any) => {
     }
 
     switch (recordType) {
+      case "editAnimal":
+        // Open the animal form in edit mode (primary action calls updateAnimal)
+        return renderAnimalForm();
       case "health":
         return renderHealthRecordForm();
       case "breeding":
@@ -2392,8 +2407,8 @@ const LivestockTab = ({ navigation }: any) => {
                   initialWeight: "",
                   initialHealthNotes: "",
                 });
-                setSelectedAnimal(selectedAnimal);
-                setRecordType("");
+                // Keep the current selection and open the edit form
+                setRecordType("editAnimal");
                 setModalVisible(true);
               }}
             >
@@ -2410,6 +2425,14 @@ const LivestockTab = ({ navigation }: any) => {
               <Ionicons name="add-circle-outline" size={18} color="#4CAF50" />
               <Text style={styles.quickActionText}>Add Record</Text>
             </TouchableOpacity>
+            {/* New: Delete button */}
+            <TouchableOpacity
+              style={styles.quickActionButton}
+              onPress={deleteAnimal}
+            >
+              <Ionicons name="trash-outline" size={18} color="#f44336" />
+              <Text style={styles.quickActionText}>Delete</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.quickActionButton}
               onPress={() => setViewMode("list")}
@@ -2419,7 +2442,6 @@ const LivestockTab = ({ navigation }: any) => {
             </TouchableOpacity>
           </View>
         </View>
-
         {/* Health Records Section */}
         <View style={styles.sectionCard}>
           <TouchableOpacity
@@ -3414,10 +3436,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryButton: {
-    backgroundColor: "#1a237e",
+    backgroundColor: "#006a02ff",
   },
   cancelButton: {
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#f91818ff",
   },
   deleteButton: {
     backgroundColor: "#f44336",
@@ -3521,7 +3543,7 @@ const styles = StyleSheet.create({
   quickActionButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
     backgroundColor: "#f5f5f5",

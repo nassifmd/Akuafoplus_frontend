@@ -1,34 +1,49 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Modal, TextInput, Alert, ActivityIndicator
+  Modal, TextInput, Alert, ActivityIndicator,
+  ScrollView, StatusBar
 } from 'react-native';
 import Icon from "react-native-vector-icons/MaterialIcons";
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Config from '../../Config/config';
 
-const InventoryTab = () => {
-    const [inventoryItems, setInventoryItems] = useState([]);
-    const [isModalVisible, setIsModalVisible] = useState(false);
-    const [isEditMode, setIsEditMode] = useState(false);
-    const [currentItem, setCurrentItem] = useState<{
-      _id: string;
-      name: string;
-      type: string;
-      quantity: number;
-      unit: string;
-      costPerUnit: number;
-      supplier?: string;
-      minStockLevel?: number;
-      notes?: string;
-    } | null>(null);
-    const [isQuantityModalVisible, setIsQuantityModalVisible] = useState(false);
-    const [quantityAction, setQuantityAction] = useState('');
-    const [amount, setAmount] = useState('');
-    const [isLoading, setIsLoading] = useState(true);
+interface InventoryItem {
+  _id: string;
+  name: string;
+  type: string;
+  quantity: number;
+  unit: string;
+  costPerUnit: number;
+  supplier?: string;
+  minStockLevel?: number;
+  notes?: string;
+}
 
-  const [formData, setFormData] = useState({
+interface FormData {
+  name: string;
+  type: string;
+  quantity: string;
+  unit: string;
+  costPerUnit: string;
+  supplier: string;
+  minStockLevel: string;
+  notes: string;
+}
+
+const InventoryTab = () => {
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [currentItem, setCurrentItem] = useState<InventoryItem | null>(null);
+  const [isQuantityModalVisible, setIsQuantityModalVisible] = useState(false);
+  const [quantityAction, setQuantityAction] = useState('');
+  const [amount, setAmount] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [formData, setFormData] = useState<FormData>({
     name: '',
     type: 'Feed',
     quantity: '',
@@ -42,75 +57,52 @@ const InventoryTab = () => {
   const inventoryTypes = ['Feed', 'Medication', 'Supplement', 'Equipment'];
   const units = ['kg', 'g', 'L', 'ml', 'pieces', 'bags'];
 
-    // Helper function to get token
-    const getAccessToken = async () => {
-        try {
-            const token = await AsyncStorage.getItem('accessToken');
-            if (!token) {
-                throw new Error('No access token found');
-            }
-            return token;
-        } catch (error) {
-            console.error('Error getting token:', error);
-            throw error;
-        }
-      };
+  const getAccessToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('accessToken');
+      if (!token) throw new Error('No access token found');
+      return token;
+    } catch (error) {
+      console.error('Error getting token:', error);
+      throw error;
+    }
+  };
 
   useEffect(() => {
     fetchInventoryItems();
   }, []);
 
-const fetchInventoryItems = async () => {
-  setIsLoading(true);
-  try {
-    const token = await getAccessToken();
-    console.log('Fetching inventory items with token:', token);
-    
-    const response = await axios.get(`${Config.API_BASE_URL}/inventory`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    
-    console.log('Inventory response:', response.data);
-    // Update this line to use response.data.data instead of response.data
-    setInventoryItems(response.data.data || []);
-  } catch (error) {
-    console.error('Error fetching inventory:', error);
-    if (axios.isAxiosError(error)) {
-      console.error('Axios error details:', {
-        message: error.message,
-        code: error.code,
-        response: error.response,
-        config: error.config
+  const fetchInventoryItems = async () => {
+    try {
+      const token = await getAccessToken();
+      const response = await axios.get(`${Config.API_BASE_URL}/inventory`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      Alert.alert('Error', error.response?.data?.message || 'Failed to fetch inventory items');
-    } else {
-      Alert.alert('Error', 'Failed to fetch inventory items');
+      setInventoryItems(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+      if (axios.isAxiosError(error)) {
+        Alert.alert('Error', error.response?.data?.message || 'Failed to fetch inventory items');
+      } else {
+        Alert.alert('Error', 'Failed to fetch inventory items');
+      }
+      setInventoryItems([]);
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
     }
-    setInventoryItems([]);
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-interface FormData {
-    name: string;
-    type: string;
-    quantity: string;
-    unit: string;
-    costPerUnit: string;
-    supplier: string;
-    minStockLevel: string;
-    notes: string;
-}
-
-const handleInputChange = (name: keyof FormData, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value
-    }));
   };
 
-const resetForm = () => {
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchInventoryItems();
+  };
+
+  const handleInputChange = (name: keyof FormData, value: string) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const resetForm = () => {
     setFormData({
       name: '',
       type: 'Feed',
@@ -126,6 +118,11 @@ const resetForm = () => {
   };
 
   const handleSubmit = async () => {
+    if (!formData.name.trim()) {
+      Alert.alert('Error', 'Please enter an item name');
+      return;
+    }
+
     try {
       const token = await getAccessToken();
       if (isEditMode && currentItem) {
@@ -143,23 +140,10 @@ const resetForm = () => {
     } catch (error) {
       const errorMessage = (error as any)?.response?.data?.error || 'Failed to save inventory item';
       Alert.alert('Error', errorMessage);
-      console.error(error);
     }
   };
 
-  interface InventoryItem {
-    _id: string;
-    name: string;
-    type: string;
-    quantity: number;
-    unit: string;
-    costPerUnit: number;
-    supplier?: string;
-    minStockLevel?: number;
-    notes?: string;
-  }
-
-const handleEdit = (item: InventoryItem) => {
+  const handleEdit = (item: InventoryItem) => {
     setCurrentItem(item);
     setFormData({
       name: item.name,
@@ -175,105 +159,145 @@ const handleEdit = (item: InventoryItem) => {
     setIsModalVisible(true);
   };
 
-const handleDelete = async (id: string) => {
-  try {
-    const token = await getAccessToken();
-    const response = await axios.delete(
-      `${Config.API_BASE_URL}/inventory/${id}`,
-      { headers: { Authorization: `Bearer ${token}` } }
+  const handleDelete = async (id: string) => {
+    Alert.alert(
+      'Delete Item',
+      'Are you sure you want to delete this item?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const token = await getAccessToken();
+              const response = await axios.delete(
+                `${Config.API_BASE_URL}/inventory/${id}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+              
+              if (response.data.success) {
+                Alert.alert('Success', response.data.message);
+                fetchInventoryItems();
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete item');
+            }
+          }
+        }
+      ]
     );
-    
-    if (response.data.success) {
-      Alert.alert('Success', response.data.message);
-      fetchInventoryItems();
-    } else {
-      Alert.alert('Error', response.data.message);
-    }
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error('Full delete error:', error.response?.data || error.message);
-      Alert.alert(
-        'Error', 
-        error.response?.data?.message || 'Failed to delete item'
-      );
-    } else {
-      console.error('Full delete error:', error);
-      Alert.alert('Error', 'Failed to delete item');
-    }
-  }
-};
+  };
 
-const handleQuantityUpdate = async () => {
+  const handleQuantityUpdate = async () => {
+    if (!amount || parseFloat(amount) <= 0) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+
     try {
       if (currentItem) {
         const token = await getAccessToken();
         await axios.post(
           `${Config.API_BASE_URL}/inventory/${currentItem._id}/quantity`,
-          {
-            action: quantityAction,
-            amount: parseFloat(amount)
-          },
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
+          { action: quantityAction, amount: parseFloat(amount) },
+          { headers: { Authorization: `Bearer ${token}` } }
         );
         fetchInventoryItems();
         setIsQuantityModalVisible(false);
         setAmount('');
-      } else {
-        Alert.alert('Error', 'No item selected for quantity update');
       }
     } catch (error) {
       const errorMessage = (error as any)?.response?.data?.error || 'Failed to update quantity';
       Alert.alert('Error', errorMessage);
-      console.error(error);
     }
   };
 
+  const getTypeColor = (type: string) => {
+    const colors = {
+      Feed: '#10b981',
+      Medication: '#ef4444',
+      Supplement: '#f59e0b',
+      Equipment: '#3b82f6'
+    };
+    return colors[type as keyof typeof colors] || '#6b7280';
+  };
+
   const renderItem = ({ item }: { item: InventoryItem }) => (
-    <View style={styles.itemContainer}>
-      <View style={styles.itemInfo}>
-        <Text style={styles.itemName}>{item.name}</Text>
-        <Text style={styles.itemType}>{item.type}</Text>
-        <Text style={styles.itemQuantity}>
-          {item.quantity} {item.unit} {item.minStockLevel && `(Min: ${item.minStockLevel})`}
-        </Text>
+    <View style={styles.itemCard}>
+      <View style={styles.itemHeader}>
+        <View style={[styles.typeIndicator, { backgroundColor: getTypeColor(item.type) }]} />
+        <View style={styles.itemTitleContainer}>
+          <Text style={styles.itemName}>{item.name}</Text>
+          <View style={styles.typeBadge}>
+            <Text style={[styles.typeText, { color: getTypeColor(item.type) }]}>
+              {item.type}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.itemDetails}>
+        <View style={styles.quantitySection}>
+          <Text style={styles.quantityText}>
+            {item.quantity} {item.unit}
+          </Text>
+          {item.minStockLevel && (
+            <Text style={styles.minStockText}>
+              Min: {item.minStockLevel}
+            </Text>
+          )}
+        </View>
+
         {item.quantity <= (item.minStockLevel || 0) && (
-          <Text style={styles.lowStock}>Low Stock!</Text>
+          <View style={styles.lowStockBadge}>
+            <Icon name="warning" size={14} color="#fff" />
+            <Text style={styles.lowStockText}>Low Stock</Text>
+          </View>
         )}
       </View>
-      <View style={styles.itemActions}>
+
+      {item.supplier && (
+        <Text style={styles.supplierText}>Supplier: {item.supplier}</Text>
+      )}
+
+      <View style={styles.actionBar}>
         <TouchableOpacity 
+          style={[styles.actionBtn, styles.useBtn]}
           onPress={() => {
             setCurrentItem(item);
             setQuantityAction('use');
             setIsQuantityModalVisible(true);
           }}
-          style={styles.actionButton}
         >
-          <Icon name="remove" size={20} color="#fff" />
+          <Icon name="remove" size={18} color="#fff" />
+          <Text style={styles.actionBtnText}>Use</Text>
         </TouchableOpacity>
+
         <TouchableOpacity 
+          style={[styles.actionBtn, styles.restockBtn]}
           onPress={() => {
             setCurrentItem(item);
             setQuantityAction('restock');
             setIsQuantityModalVisible(true);
           }}
-          style={styles.actionButton}
         >
-          <Icon name="add" size={20} color="#fff" />
+          <Icon name="add" size={18} color="#fff" />
+          <Text style={styles.actionBtnText}>Restock</Text>
         </TouchableOpacity>
+
         <TouchableOpacity 
+          style={[styles.actionBtn, styles.editBtn]}
           onPress={() => handleEdit(item)}
-          style={styles.actionButton}
         >
-          <Icon name="create" size={20} color="#fff" />
+          <Icon name="edit" size={16} color="#fff" />
         </TouchableOpacity>
+
         <TouchableOpacity 
+          style={[styles.actionBtn, styles.deleteBtn]}
           onPress={() => handleDelete(item._id)}
-          style={[styles.actionButton, { backgroundColor: '#dc3545' }]}
         >
-          <Icon name="delete" size={20} color="#fff" />
+          <Icon name="delete" size={16} color="#fff" />
         </TouchableOpacity>
       </View>
     </View>
@@ -281,6 +305,17 @@ const handleQuantityUpdate = async () => {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Inventory Management</Text>
+        <Text style={styles.headerSubtitle}>
+          {inventoryItems.length} items total
+        </Text>
+      </View>
+
+      {/* Add Item Button */}
       <TouchableOpacity 
         style={styles.addButton}
         onPress={() => {
@@ -288,19 +323,25 @@ const handleQuantityUpdate = async () => {
           setIsModalVisible(true);
         }}
       >
-        <Icon name="add" size={24} color="#fff" />
-        <Text style={styles.addButtonText}>Add Inventory Item</Text>
+        <View style={styles.addButtonContent}>
+          <Icon name="add" size={22} color="#fff" />
+          <Text style={styles.addButtonText}>Add New Item</Text>
+        </View>
       </TouchableOpacity>
 
+      {/* Inventory List */}
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007bff" />
-          <Text>Loading inventory...</Text>
+          <ActivityIndicator size="large" color="#3b82f6" />
+          <Text style={styles.loadingText}>Loading inventory...</Text>
         </View>
       ) : inventoryItems.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Icon name="inventory" size={50} color="#6c757d" />
-          <Text style={styles.emptyText}>No inventory items found</Text>
+          <Icon name="inventory" size={80} color="#cbd5e1" />
+          <Text style={styles.emptyTitle}>No Inventory Items</Text>
+          <Text style={styles.emptySubtitle}>
+            Get started by adding your first inventory item
+          </Text>
           <TouchableOpacity 
             style={styles.refreshButton}
             onPress={fetchInventoryItems}
@@ -310,15 +351,17 @@ const handleQuantityUpdate = async () => {
           </TouchableOpacity>
         </View>
       ) : (
-      <FlatList
-        data={inventoryItems}
-        renderItem={renderItem}
-        keyExtractor={item => item._id}
-        contentContainerStyle={styles.listContent}
-        refreshing={isLoading}
-        onRefresh={fetchInventoryItems}
-      />
+        <FlatList
+          data={inventoryItems}
+          renderItem={renderItem}
+          keyExtractor={item => item._id}
+          contentContainerStyle={styles.listContent}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          showsVerticalScrollIndicator={false}
+        />
       )}
+
       {/* Add/Edit Modal */}
       <Modal
         visible={isModalVisible}
@@ -328,118 +371,161 @@ const handleQuantityUpdate = async () => {
           resetForm();
         }}
       >
+        <ScrollView>
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
-              {isEditMode ? 'Edit Inventory Item' : 'Add New Inventory Item'}
+              {isEditMode ? 'Edit Item' : 'Add New Item'}
             </Text>
             <TouchableOpacity 
+              style={styles.closeButton}
               onPress={() => {
                 setIsModalVisible(false);
                 resetForm();
               }}
             >
-              <Icon name="close" size={24} color="#333" />
+              <Icon name="close" size={24} color="#64748b" />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.formContainer}>
-            <Text style={styles.label}>Name</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.name}
-              onChangeText={(text) => handleInputChange('name', text)}
-              placeholder="Item name"
-            />
-
-            <Text style={styles.label}>Type</Text>
-            <View style={styles.radioGroup}>
-              {inventoryTypes.map(type => (
-                <TouchableOpacity
-                  key={type}
-                  style={[
-                    styles.radioButton,
-                    formData.type === type && styles.radioButtonSelected
-                  ]}
-                  onPress={() => handleInputChange('type', type)}
-                >
-                  <Text style={formData.type === type ? styles.radioTextSelected : styles.radioText}>
-                    {type}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+          <ScrollView style={styles.modalContent}>
+            <View style={styles.formSection}>
+              <Text style={styles.label}>Item Name *</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.name}
+                onChangeText={(text) => handleInputChange('name', text)}
+                placeholder="Enter item name"
+                placeholderTextColor="#94a3b8"
+              />
             </View>
 
-            <Text style={styles.label}>Quantity</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.quantity}
-              onChangeText={(text) => handleInputChange('quantity', text)}
-              placeholder="Current quantity"
-              keyboardType="numeric"
-            />
-
-            <Text style={styles.label}>Unit</Text>
-            <View style={styles.radioGroup}>
-              {units.map(unit => (
-                <TouchableOpacity
-                  key={unit}
-                  style={[
-                    styles.radioButton,
-                    formData.unit === unit && styles.radioButtonSelected
-                  ]}
-                  onPress={() => handleInputChange('unit', unit)}
-                >
-                  <Text style={formData.unit === unit ? styles.radioTextSelected : styles.radioText}>
-                    {unit}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={styles.formSection}>
+              <Text style={styles.label}>Category</Text>
+              <View style={styles.categoryGrid}>
+                {inventoryTypes.map(type => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.categoryButton,
+                      formData.type === type && [
+                        styles.categoryButtonSelected,
+                        { borderColor: getTypeColor(type) }
+                      ]
+                    ]}
+                    onPress={() => handleInputChange('type', type)}
+                  >
+                    <Text style={[
+                      styles.categoryText,
+                      formData.type === type && [
+                        styles.categoryTextSelected,
+                        { color: getTypeColor(type) }
+                      ]
+                    ]}>
+                      {type}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
-            <Text style={styles.label}>Cost per Unit</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.costPerUnit}
-              onChangeText={(text) => handleInputChange('costPerUnit', text)}
-              placeholder="Cost per unit"
-              keyboardType="numeric"
-            />
+            <View style={styles.formRow}>
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Quantity</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.quantity}
+                  onChangeText={(text) => handleInputChange('quantity', text)}
+                  placeholder="0"
+                  keyboardType="numeric"
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
 
-            <Text style={styles.label}>Supplier</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.supplier}
-              onChangeText={(text) => handleInputChange('supplier', text)}
-              placeholder="Supplier name"
-            />
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Unit</Text>
+                <View style={styles.unitSelector}>
+                  {units.map(unit => (
+                    <TouchableOpacity
+                      key={unit}
+                      style={[
+                        styles.unitButton,
+                        formData.unit === unit && styles.unitButtonSelected
+                      ]}
+                      onPress={() => handleInputChange('unit', unit)}
+                    >
+                      <Text style={[
+                        styles.unitText,
+                        formData.unit === unit && styles.unitTextSelected
+                      ]}>
+                        {unit}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
 
-            <Text style={styles.label}>Minimum Stock Level</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.minStockLevel}
-              onChangeText={(text) => handleInputChange('minStockLevel', text)}
-              placeholder="Minimum stock level"
-              keyboardType="numeric"
-            />
+            <View style={styles.formSection}>
+              <Text style={styles.label}>Cost per Unit</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.costPerUnit}
+                onChangeText={(text) => handleInputChange('costPerUnit', text)}
+                placeholder="0.00"
+                keyboardType="numeric"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
 
-            <Text style={styles.label}>Notes</Text>
-            <TextInput
-              style={[styles.input, { height: 80 }]}
-              value={formData.notes}
-              onChangeText={(text) => handleInputChange('notes', text)}
-              placeholder="Additional notes"
-              multiline
-            />
+            <View style={styles.formSection}>
+              <Text style={styles.label}>Supplier</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.supplier}
+                onChangeText={(text) => handleInputChange('supplier', text)}
+                placeholder="Supplier name"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.label}>Minimum Stock Level</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.minStockLevel}
+                onChangeText={(text) => handleInputChange('minStockLevel', text)}
+                placeholder="Set minimum stock level"
+                keyboardType="numeric"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.label}>Notes</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={formData.notes}
+                onChangeText={(text) => handleInputChange('notes', text)}
+                placeholder="Additional notes..."
+                multiline
+                numberOfLines={4}
+                placeholderTextColor="#94a3b8"
+                textAlignVertical="top"
+              />
+            </View>
 
             <TouchableOpacity 
               style={styles.saveButton}
               onPress={handleSubmit}
             >
-              <Text style={styles.saveButtonText}>Save</Text>
+              <Text style={styles.saveButtonText}>
+                {isEditMode ? 'Update Item' : 'Add Item'}
+              </Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </View>
+        </ScrollView>
       </Modal>
 
       {/* Quantity Update Modal */}
@@ -451,34 +537,48 @@ const handleQuantityUpdate = async () => {
       >
         <View style={styles.centeredView}>
           <View style={styles.quantityModal}>
-            <Text style={styles.quantityModalTitle}>
-              {quantityAction === 'use' ? 'Use Item' : 'Restock Item'}
-            </Text>
+            <View style={styles.quantityModalHeader}>
+              <Icon 
+                name={quantityAction === 'use' ? 'remove' : 'add'} 
+                size={24} 
+                color={quantityAction === 'use' ? '#ef4444' : '#10b981'} 
+              />
+              <Text style={styles.quantityModalTitle}>
+                {quantityAction === 'use' ? 'Use Item' : 'Restock Item'}
+              </Text>
+            </View>
+
             <Text style={styles.quantityModalItem}>{currentItem?.name}</Text>
             <Text style={styles.quantityModalCurrent}>
-              Current: {currentItem?.quantity} {currentItem?.unit}
+              Current stock: {currentItem?.quantity} {currentItem?.unit}
             </Text>
 
             <TextInput
               style={styles.quantityInput}
               value={amount}
               onChangeText={setAmount}
-              placeholder={`Amount to ${quantityAction}`}
+              placeholder={`Enter amount to ${quantityAction}`}
+              placeholderTextColor="#94a3b8"
               keyboardType="numeric"
             />
 
             <View style={styles.quantityModalButtons}>
               <TouchableOpacity
-                style={[styles.quantityButton, { backgroundColor: '#6c757d' }]}
+                style={styles.cancelButton}
                 onPress={() => setIsQuantityModalVisible(false)}
               >
-                <Text style={styles.quantityButtonText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.quantityButton, { backgroundColor: '#28a745' }]}
+                style={[
+                  styles.confirmButton,
+                  { backgroundColor: quantityAction === 'use' ? '#ef4444' : '#10b981' }
+                ]}
                 onPress={handleQuantityUpdate}
               >
-                <Text style={styles.quantityButtonText}>Confirm</Text>
+                <Text style={styles.confirmButtonText}>
+                  {quantityAction === 'use' ? 'Use' : 'Restock'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -491,217 +591,396 @@ const handleQuantityUpdate = async () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 15,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f8fafc',
+  },
+  header: {
+    padding: 20,
+    paddingTop: 10,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
   },
   addButton: {
+    margin: 20,
+    backgroundColor: '#3b82f6',
+    borderRadius: 12,
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  addButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#007bff',
-    padding: 12,
-    borderRadius: 5,
-    marginBottom: 15,
+    padding: 16,
   },
   addButtonText: {
     color: '#fff',
-    fontWeight: 'bold',
-    marginLeft: 10,
+    fontWeight: '600',
+    fontSize: 16,
+    marginLeft: 8,
   },
   listContent: {
-    paddingBottom: 20,
+    padding: 16,
   },
-  itemContainer: {
+  itemCard: {
     backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 10,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+    borderLeftWidth: 4,
   },
-  itemInfo: {
-    marginBottom: 10,
+  itemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  typeIndicator: {
+    width: 4,
+    height: 24,
+    borderRadius: 2,
+    marginRight: 12,
+  },
+  itemTitleContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   itemName: {
     fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 5,
+    fontWeight: '600',
+    color: '#1e293b',
+    flex: 1,
   },
-  itemType: {
-    color: '#6c757d',
-    marginBottom: 5,
+  typeBadge: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
-  itemQuantity: {
-    fontSize: 16,
-    marginBottom: 5,
+  typeText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
-  lowStock: {
-    color: '#dc3545',
-    fontWeight: 'bold',
-  },
-  itemActions: {
+  itemDetails: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  actionButton: {
-    backgroundColor: '#007bff',
-    padding: 8,
-    borderRadius: 5,
-    width: 40,
     alignItems: 'center',
+    marginBottom: 8,
+  },
+  quantitySection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  quantityText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginRight: 12,
+  },
+  minStockText: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  lowStockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  lowStockText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  supplierText: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 12,
+  },
+  actionBar: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    flex: 1,
+  },
+  useBtn: {
+    backgroundColor: '#ef4444',
+  },
+  restockBtn: {
+    backgroundColor: '#10b981',
+  },
+  editBtn: {
+    backgroundColor: '#3b82f6',
+    flex: 0.5,
+  },
+  deleteBtn: {
+    backgroundColor: '#64748b',
+    flex: 0.5,
+  },
+  actionBtnText: {
+    color: '#fff',
+    fontWeight: '500',
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#64748b',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#475569',
+    marginTop: 16,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 20,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 20,
+  },
+  refreshButtonText: {
+    color: '#fff',
+    fontWeight: '500',
+    marginLeft: 8,
   },
   modalContainer: {
     flex: 1,
-    padding: 20,
     backgroundColor: '#fff',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    paddingBottom: 15,
+    borderBottomColor: '#e2e8f0',
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    color: '#1e293b',
   },
-  formContainer: {
+  closeButton: {
+    padding: 4,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  formSection: {
+    marginBottom: 20,
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  formGroup: {
     flex: 1,
   },
   label: {
-    marginBottom: 5,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ced4da',
-    borderRadius: 4,
-    padding: 10,
-    marginBottom: 15,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
     fontSize: 16,
+    color: '#1e293b',
+    backgroundColor: '#fff',
   },
-  radioGroup: {
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 15,
+    gap: 8,
   },
-  radioButton: {
+  categoryButton: {
     borderWidth: 1,
-    borderColor: '#ced4da',
-    borderRadius: 4,
-    padding: 8,
-    marginRight: 10,
-    marginBottom: 10,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    minWidth: 80,
   },
-  radioButtonSelected: {
-    borderColor: '#007bff',
-    backgroundColor: '#e7f1ff',
+  categoryButtonSelected: {
+    borderWidth: 2,
+    backgroundColor: '#f8fafc',
   },
-  radioText: {
-    color: '#333',
+  categoryText: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    fontWeight: '500',
   },
-  radioTextSelected: {
-    color: '#007bff',
-    fontWeight: 'bold',
+  categoryTextSelected: {
+    fontWeight: '600',
+  },
+  unitSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  unitButton: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  unitButtonSelected: {
+    borderColor: '#3b82f6',
+    backgroundColor: '#dbeafe',
+  },
+  unitText: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  unitTextSelected: {
+    color: '#3b82f6',
+    fontWeight: '500',
   },
   saveButton: {
-    backgroundColor: '#28a745',
-    padding: 15,
-    borderRadius: 5,
+    backgroundColor: '#3b82f6',
+    padding: 16,
+    borderRadius: 8,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 8,
+    marginBottom: 20,
   },
   saveButtonText: {
     color: '#fff',
-    fontWeight: 'bold',
     fontSize: 16,
+    fontWeight: '600',
   },
   centeredView: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    padding: 20,
   },
   quantityModal: {
     backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 20,
-    width: '80%',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  quantityModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   quantityModalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    textAlign: 'center',
+    fontWeight: '600',
+    color: '#1e293b',
+    marginLeft: 8,
   },
   quantityModalItem: {
     fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 5,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 8,
   },
   quantityModalCurrent: {
-    textAlign: 'center',
+    fontSize: 14,
+    color: '#64748b',
     marginBottom: 20,
-    color: '#6c757d',
   },
   quantityInput: {
     borderWidth: 1,
-    borderColor: '#ced4da',
-    borderRadius: 4,
-    padding: 10,
-    marginBottom: 20,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
     fontSize: 16,
+    color: '#1e293b',
+    marginBottom: 24,
   },
   quantityModalButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
   },
-  quantityButton: {
-    padding: 10,
-    borderRadius: 5,
-    width: '48%',
-    alignItems: 'center',
-  },
-  quantityButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-    loadingContainer: {
+  cancelButton: {
     flex: 1,
-    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
     alignItems: 'center',
   },
-  emptyContainer: {
+  cancelButtonText: {
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  confirmButton: {
     flex: 1,
-    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
     alignItems: 'center',
-    padding: 20,
   },
-  emptyText: {
-    fontSize: 18,
-    color: '#6c757d',
-    marginVertical: 10,
-  },
-  refreshButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#007bff',
-    padding: 10,
-    borderRadius: 5,
-    marginTop: 20,
-  },
-  refreshButtonText: {
+  confirmButtonText: {
     color: '#fff',
-    marginLeft: 10,
+    fontWeight: '500',
   },
 });
 
