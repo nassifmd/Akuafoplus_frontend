@@ -1,5 +1,16 @@
 import React, { useEffect, useState, useRef } from "react";
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Image, TouchableOpacity, ScrollView } from "react-native";
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
+  ActivityIndicator, 
+  Image, 
+  TouchableOpacity, 
+  ScrollView,
+  Animated,
+  StatusBar 
+} from "react-native";
 import AlertPro from 'react-native-alert-pro';
 import axios from "axios";
 import Config from '../Config/config';
@@ -25,10 +36,10 @@ const toAbsoluteUrl = (u?: string) => {
 };
 
 const categoryData = {
-  crop: { name: 'Crop', icon: 'grass', color: '#4CAF50' },
-  livestock: { name: 'Livestock', icon: 'pets', color: '#795548' },
-  poultry: { name: 'Poultry', icon: 'egg', color: '#FF9800' },
-  default: { name: 'General', icon: 'article', color: '#607D8B' }
+  crop: { name: 'Crop', icon: 'grass', color: '#10B981', gradient: ['#10B981', '#059669'] },
+  livestock: { name: 'Livestock', icon: 'pets', color: '#F59E0B', gradient: ['#F59E0B', '#D97706'] },
+  poultry: { name: 'Poultry', icon: 'egg', color: '#EF4444', gradient: ['#EF4444', '#DC2626'] },
+  default: { name: 'General', icon: 'article', color: '#6B7280', gradient: ['#6B7280', '#4B5563'] }
 };
 
 const getCategoryInfo = (categoryKey: string) => {
@@ -43,6 +54,8 @@ const KnowledgeScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   // AlertPro state
   const alertRef = useRef<AlertPro>(null);
@@ -54,14 +67,12 @@ const KnowledgeScreen = ({ navigation }: any) => {
 
   const showAlert = ({ title, message, button = 'OK' }: { title: string; message: string; button?: string }) => {
     setAlertConfig({ title, message, button });
-    // small timeout to ensure ref exists
     setTimeout(() => alertRef.current?.open(), 0);
   };
 
   const fetchKnowledge = async () => {
     try {
       const token = await AsyncStorage.getItem("accessToken");
-
       let url = activeCategory 
         ? `${Config.API_BASE_URL}/knowledge?category=${activeCategory}`
         : `${Config.API_BASE_URL}/knowledge`;
@@ -70,7 +81,6 @@ const KnowledgeScreen = ({ navigation }: any) => {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
       });
 
-      // Backend already supports ?category=..., no need to refilter
       setKnowledge(response.data);
     } catch (error: any) {
       handleFetchError(error);
@@ -128,9 +138,21 @@ const KnowledgeScreen = ({ navigation }: any) => {
     fetchKnowledge();
   }, [activeCategory]);
 
-  const filteredKnowledge = activeCategory 
-    ? knowledge.filter(item => item.category === activeCategory)
-    : knowledge;
+  const filteredKnowledge = knowledge.filter(item => {
+    const matchesCategory = !activeCategory || item.category === activeCategory;
+    const matchesSearch = !searchQuery || 
+      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    return matchesCategory && matchesSearch;
+  });
+
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [1, 0.9],
+    extrapolate: 'clamp',
+  });
 
   const renderCategoryButton = (category: string) => {
     const isActive = activeCategory === category;
@@ -142,15 +164,19 @@ const KnowledgeScreen = ({ navigation }: any) => {
         style={[
           styles.categoryButton,
           isActive && styles.activeCategoryButton,
-          { backgroundColor: isActive ? categoryInfo.color : '#FFFFFF' }
         ]}
         onPress={() => setActiveCategory(isActive ? null : category)}
       >
-        <Icon 
-          name={categoryInfo.icon} 
-          size={20} 
-          color={isActive ? 'white' : categoryInfo.color} 
-        />
+        <View style={[
+          styles.categoryIconContainer,
+          { backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : `${categoryInfo.color}15` }
+        ]}>
+          <Icon 
+            name={categoryInfo.icon} 
+            size={20} 
+            color={isActive ? 'white' : categoryInfo.color} 
+          />
+        </View>
         <Text style={[styles.categoryText, isActive && styles.activeCategoryText]}>
           {categoryInfo.name}
         </Text>
@@ -158,12 +184,30 @@ const KnowledgeScreen = ({ navigation }: any) => {
     );
   };
 
-  const renderKnowledgeItem = ({ item }: { item: KnowledgeItem }) => (
+  const renderKnowledgeItem = ({ item, index }: { item: KnowledgeItem; index: number }) => (
     <TouchableOpacity
       style={styles.card}
       activeOpacity={0.9}
-      onPress={() => navigation.navigate("KnowledgeContentScreen", { item: { ...item, image: toAbsoluteUrl(item.image) } })}
+      onPress={() => navigation.navigate("KnowledgeContentScreen", { 
+        item: { ...item, image: toAbsoluteUrl(item.image) } 
+      })}
     >
+      <View style={styles.cardHeader}>
+        <View style={[
+          styles.categoryBadge,
+          { backgroundColor: getCategoryInfo(item.category).color }
+        ]}>
+          <Text style={styles.categoryBadgeText}>
+            {getCategoryInfo(item.category).name}
+          </Text>
+        </View>
+        <View style={styles.readTime}>
+          <Text style={styles.readTimeText}>
+            {Math.ceil(item.content.length / 200)} min read
+          </Text>
+        </View>
+      </View>
+
       {item.image && (
         <Image 
           source={{ uri: toAbsoluteUrl(item.image) }}
@@ -173,33 +217,33 @@ const KnowledgeScreen = ({ navigation }: any) => {
       )}
       
       <View style={styles.cardContent}>
-        <View style={[
-          styles.categoryBadge,
-          { backgroundColor: getCategoryInfo(item.category).color }
-        ]}>
-          <Text style={styles.categoryBadgeText}>
-            {getCategoryInfo(item.category).name}
-          </Text>
-        </View>
-        
         <Text style={styles.title}>{item.title}</Text>
         <Text style={styles.content} numberOfLines={3} ellipsizeMode="tail">
           {item.content}
         </Text>
         
         {Array.isArray(item.tags) && item.tags.length > 0 && (
-          <View style={styles.tagsContainer}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.tagsContainer}
+          >
             {item.tags.map((tag) => (
-              <Text key={tag} style={styles.tag}>
-                #{tag}
-              </Text>
+              <View key={tag} style={styles.tag}>
+                <Text style={styles.tagText}>#{tag}</Text>
+              </View>
             ))}
-          </View>
+          </ScrollView>
         )}
         
-        <View style={styles.readMoreContainer}>
-          <Text style={styles.readMoreText}>Read more</Text>
-          <Icon name="chevron-right" size={18} color="#388E3C" />
+        <View style={styles.cardFooter}>
+          <TouchableOpacity style={styles.readMoreButton}>
+            <Text style={styles.readMoreText}>Read Article</Text>
+            <Icon name="arrow-forward" size={16} color="#10B981" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.bookmarkButton}>
+            <Icon name="bookmark-border" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>
@@ -208,7 +252,7 @@ const KnowledgeScreen = ({ navigation }: any) => {
   if (loading && !refreshing) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color="#10B981" />
         <Text style={styles.loadingText}>Loading Knowledge Base</Text>
         <AlertPro
           ref={alertRef}
@@ -224,15 +268,23 @@ const KnowledgeScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.screenContainer}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Knowledge Base</Text>
-        <Text style={styles.headerSubtitle}>Expert advice for your farming needs</Text>
-      </View>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
-      {/* Category Filter */}
+      {/* Animated Header */}
+      <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
+        <View style={styles.headerContent}>
+          <View>
+            <Text style={styles.headerTitle}>Knowledge Base</Text>
+            <Text style={styles.headerSubtitle}>Expert farming advice & guides</Text>
+          </View>
+          <TouchableOpacity style={styles.searchButton}>
+            <Icon name="search" size={24} color="#374151" />
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+
+      {/* Enhanced Category Filter with More Space */}
       <View style={styles.categorySection}>
-        <Text style={styles.sectionTitle}>Categories</Text>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
@@ -241,17 +293,21 @@ const KnowledgeScreen = ({ navigation }: any) => {
           <TouchableOpacity
             style={[
               styles.categoryButton,
-              !activeCategory && styles.activeCategoryButton,
-              { backgroundColor: !activeCategory ? '#3F51B5' : '#FFFFFF' }
+              !activeCategory && styles.activeAllCategoryButton,
             ]}
             onPress={() => setActiveCategory(null)}
           >
-            <Icon 
-              name="all-inclusive" 
-              size={20} 
-              color={!activeCategory ? 'white' : '#3F51B5'} 
-            />
-            <Text style={[styles.categoryText, !activeCategory && styles.activeCategoryText]}>
+            <View style={[
+              styles.categoryIconContainer,
+              { backgroundColor: !activeCategory ? 'rgba(59, 130, 246, 0.2)' : '#F3F4F6' }
+            ]}>
+              <Icon 
+                name="dashboard" 
+                size={20} 
+                color={!activeCategory ? '#3B82F6' : '#6B7280'} 
+              />
+            </View>
+            <Text style={[styles.categoryText, !activeCategory && styles.activeAllCategoryText]}>
               All
             </Text>
           </TouchableOpacity>
@@ -260,39 +316,52 @@ const KnowledgeScreen = ({ navigation }: any) => {
         </ScrollView>
       </View>
 
-      {/* Knowledge List */}
+      {/* Knowledge List - Now starts immediately after categories */}
       <View style={styles.listSection}>
-        <Text style={styles.sectionTitle}>
-          {activeCategory ? getCategoryInfo(activeCategory).name : 'All'} Articles
-          {filteredKnowledge.length > 0 && ` (${filteredKnowledge.length})`}
-        </Text>
+        <View style={styles.listHeader}>
+          <Text style={styles.sectionTitle}>
+            {activeCategory ? getCategoryInfo(activeCategory).name : 'Featured'} Articles
+          </Text>
+          <View style={styles.resultsBadge}>
+            <Text style={styles.resultsCount}>{filteredKnowledge.length}</Text>
+          </View>
+        </View>
         
         {filteredKnowledge.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Icon name="info-outline" size={50} color="#E0E0E0" />
+            <View style={styles.emptyIllustration}>
+              <Icon name="auto-stories" size={80} color="#E5E7EB" />
+            </View>
             <Text style={styles.emptyTitle}>No articles found</Text>
             <Text style={styles.emptyMessage}>
               {activeCategory 
-                ? `We couldn't find any articles in the ${getCategoryInfo(activeCategory).name} category.`
-                : "The knowledge base is currently empty."
+                ? `No articles available in ${getCategoryInfo(activeCategory).name}. Try another category.`
+                : "The knowledge base is being updated. Check back soon!"
               }
             </Text>
             <TouchableOpacity 
               style={styles.refreshButton}
               onPress={handleRefresh}
             >
+              <Icon name="refresh" size={20} color="white" />
               <Text style={styles.refreshButtonText}>Refresh</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <FlatList
+          <Animated.FlatList
             data={filteredKnowledge}
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.listContainer}
             renderItem={renderKnowledgeItem}
             refreshing={refreshing}
             onRefresh={handleRefresh}
+            showsVerticalScrollIndicator={false}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+              { useNativeDriver: true }
+            )}
+            scrollEventThrottle={16}
           />
         )}
       </View>
@@ -305,8 +374,26 @@ const KnowledgeScreen = ({ navigation }: any) => {
         showCancel={false}
         onConfirm={() => alertRef.current?.close()}
         customStyles={{
-          mask: { backgroundColor: 'rgba(0,0,0,0.4)' },
-          container: { borderRadius: 16 }
+          mask: { backgroundColor: 'rgba(0,0,0,0.6)' },
+          container: { 
+            borderRadius: 20,
+            padding: 24,
+          },
+          title: {
+            fontSize: 20,
+            fontWeight: '700',
+            color: '#1F2937',
+          },
+          message: {
+            fontSize: 16,
+            color: '#6B7280',
+            textAlign: 'center',
+          },
+          buttonConfirm: {
+            backgroundColor: '#10B981',
+            borderRadius: 12,
+            paddingVertical: 12,
+          }
         }}
       />
     </View>
@@ -316,158 +403,238 @@ const KnowledgeScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: "#F9F9F9",
+    backgroundColor: "#FFFFFF",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F9F9F9",
+    backgroundColor: "#FFFFFF",
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: "#616161",
+    color: "#6B7280",
+    fontWeight: '500',
   },
   header: {
+    paddingTop: 20,
     paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 16,
+    paddingBottom: 8, // Reduced padding
     backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#2E7D32",
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#111827",
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: "#757575",
+    fontSize: 16,
+    color: "#6B7280",
     marginTop: 4,
+    fontWeight: '500',
+  },
+  searchButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   categorySection: {
     paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingTop: 16, // Increased padding for better spacing
+    paddingBottom: 20, // Increased padding
     backgroundColor: "#FFFFFF",
   },
-  listSection: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#424242",
-    marginBottom: 12,
-  },
   categoryContainer: {
-    paddingBottom: 12,
+    paddingRight: 24,
   },
   categoryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginRight: 8,
+    paddingHorizontal: 18, // Increased padding
+    paddingVertical: 14, // Increased padding
+    borderRadius: 16,
+    marginRight: 12,
+    backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    borderColor: "#EEEEEE",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    borderColor: "#F3F4F6",
+    minWidth: 100, // Minimum width for better touch targets
   },
   activeCategoryButton: {
-    borderWidth: 0,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    backgroundColor: "#10B981",
+    borderColor: "#10B981",
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  activeAllCategoryButton: {
+    backgroundColor: "#3B82F6",
+    borderColor: "#3B82F6",
+    shadowColor: "#3B82F6",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  categoryIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10, // Slightly increased margin
   },
   categoryText: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 6,
-    color: "#616161",
+    fontSize: 15,
+    fontWeight: '600',
+    color: "#6B7280",
   },
   activeCategoryText: {
     color: 'white',
+  },
+  activeAllCategoryText: {
+    color: 'white',
+  },
+  listSection: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 8, // Reduced top padding since stats bar is removed
+  },
+  listHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20, // Increased margin for better separation
+  },
+  sectionTitle: {
+    fontSize: 22, // Slightly larger for better hierarchy
+    fontWeight: "700",
+    color: "#111827",
+  },
+  resultsBadge: {
+    backgroundColor: "#10B981",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  resultsCount: {
+    fontSize: 14,
+    color: "white",
+    fontWeight: '700',
   },
   listContainer: {
     paddingBottom: 24,
   },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 20,
     overflow: 'hidden',
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowRadius: 12,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+    marginBottom: 16, // Added margin bottom instead of separator
   },
-  image: {
-    width: "100%",
-    height: 160,
-  },
-  cardContent: {
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 16,
+    paddingBottom: 12,
   },
   categoryBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   categoryBadgeText: {
     color: 'white',
     fontSize: 12,
+    fontWeight: '700',
+  },
+  readTime: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  readTimeText: {
+    fontSize: 11,
+    color: "#6B7280",
     fontWeight: '600',
+  },
+  image: {
+    width: "100%",
+    height: 180,
+  },
+  cardContent: {
+    padding: 16,
+    paddingTop: 0,
   },
   title: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#2E7D32",
+    color: "#111827",
     marginBottom: 8,
     lineHeight: 24,
   },
   content: {
     fontSize: 15,
-    color: "#616161",
+    color: "#6B7280",
     lineHeight: 22,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   tagsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   tag: {
-    backgroundColor: "#E8F5E9",
-    color: "#388E3C",
+    backgroundColor: "#EFF6FF",
     borderRadius: 8,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 6,
     marginRight: 8,
-    marginBottom: 8,
-    fontSize: 12,
-    fontWeight: '500',
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
   },
-  readMoreContainer: {
+  tagText: {
+    color: "#1E40AF",
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  readMoreButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-end',
+    paddingVertical: 8,
   },
   readMoreText: {
-    color: "#388E3C",
-    fontWeight: '600',
-    fontSize: 14,
-    marginRight: 4,
+    color: "#10B981",
+    fontWeight: '700',
+    fontSize: 15,
+    marginRight: 6,
+  },
+  bookmarkButton: {
+    padding: 8,
   },
   emptyContainer: {
     flex: 1,
@@ -475,33 +642,51 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 40,
   },
+  emptyIllustration: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "#F9FAFB",
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: "#424242",
+    fontSize: 20,
+    fontWeight: '700',
+    color: "#111827",
     marginTop: 16,
+    textAlign: 'center',
   },
   emptyMessage: {
-    fontSize: 15,
-    color: "#757575",
+    fontSize: 16,
+    color: "#6B7280",
     textAlign: "center",
     marginTop: 8,
-    lineHeight: 22,
+    lineHeight: 24,
   },
   refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 24,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: "#4CAF50",
-    borderRadius: 8,
+    backgroundColor: "#10B981",
+    borderRadius: 12,
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   refreshButtonText: {
     color: "white",
-    fontWeight: '600',
+    fontWeight: '700',
     fontSize: 15,
+    marginLeft: 8,
   },
   separator: {
-    height: 16,
+    height: 0, // Using marginBottom on cards instead
   },
 });
 

@@ -203,7 +203,7 @@ const KnowledgeContentScreen = ({ route, navigation }: any) => {
         <Text style={styles.headerText} numberOfLines={1} ellipsizeMode="tail">
           {item.title}
         </Text>
-        <View style={styles.headerActions}>
+        {/* <View style={styles.headerActions}>
           <TouchableOpacity 
             onPress={onShare}
             style={styles.headerActionButton}
@@ -224,7 +224,7 @@ const KnowledgeContentScreen = ({ route, navigation }: any) => {
               color={bookmarked ? "#FFC107" : "#37474F"} 
             />
           </TouchableOpacity>
-        </View>
+        </View> */}
       </LinearGradient>
 
       <ScrollView 
@@ -300,11 +300,18 @@ const KnowledgeContentScreen = ({ route, navigation }: any) => {
               </View>
               <Text style={styles.sectionTitle}>Data Tables</Text>
             </View>
-            {item.tables.map((table: TableData, index: number) => (
-              <View key={`table-${index}`} style={styles.tableWrapper}>
-                <Table table={table} />
-              </View>
-            ))}
+            <ScrollView 
+              style={styles.tablesScrollView}
+              contentContainerStyle={styles.tablesScrollContent}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={true}
+            >
+              {item.tables.map((table: TableData, index: number) => (
+                <View key={`table-${index}`} style={styles.tableWrapper}>
+                  <Table table={table} />
+                </View>
+              ))}
+            </ScrollView>
           </View>
         )}
         
@@ -675,6 +682,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 8,
   },
+  tablesScrollView: {
+  maxHeight: 600, // Adjust this value as needed
+},
+tablesScrollContent: {
+  paddingBottom: 16,
+},
 });
 
 export default KnowledgeContentScreen;
