@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   Platform,
   KeyboardAvoidingView,
+  Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -17,14 +18,11 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Config from '../Config/config';
-import { ALERT_TYPE, Dialog, Toast } from 'react-native-alert-notification';
 
-// Define your navigation types properly
 type RootStackParamList = {
   ForumScreen: undefined;
   CreatePost: undefined;
   LoginScreen: { redirectTo?: string };
-  // Add other screens as needed
 };
 
 type CreatePostScreenNavigationProp = StackNavigationProp<RootStackParamList, 'CreatePost'>;
@@ -35,6 +33,16 @@ const CreatePostScreen = () => {
   const [category, setCategory] = useState('general');
   const [loading, setLoading] = useState(false);
   const navigation = useNavigation<CreatePostScreenNavigationProp>();
+  
+  // Custom alert state
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    title: '',
+    message: '',
+    type: 'success' as 'success' | 'error' | 'warning',
+    showCancel: false,
+    onConfirm: () => {},
+  });
 
   const categories = [
     { id: 'general', name: 'General', icon: 'comment-text-outline' },
@@ -44,24 +52,40 @@ const CreatePostScreen = () => {
     { id: 'help', name: 'Help', icon: 'lifebuoy' },
   ];
 
+  const showAlert = (
+    title: string, 
+    message: string, 
+    type: 'success' | 'error' | 'warning' = 'success', 
+    showCancel = false, 
+    onConfirm?: () => void
+  ) => {
+    setAlertConfig({
+      title,
+      message,
+      type,
+      showCancel,
+      onConfirm: onConfirm || (() => setAlertVisible(false)),
+    });
+    setAlertVisible(true);
+  };
+
+  const handleConfirm = () => {
+    alertConfig.onConfirm();
+    setAlertVisible(false);
+  };
+
+  const handleCancel = () => {
+    setAlertVisible(false);
+  };
+
   const handleSubmit = async () => {
     if (!title.trim()) {
-      Dialog.show({
-        type: ALERT_TYPE.DANGER,
-        title: 'Missing Title',
-        textBody: 'Please enter a title for your post',
-        button: 'OK',
-      });
+      showAlert('Missing Title', 'Please enter a title for your post', 'error');
       return;
     }
 
     if (!content.trim()) {
-      Dialog.show({
-        type: ALERT_TYPE.DANGER,
-        title: 'Missing Content',
-        textBody: 'Please enter content for your post',
-        button: 'OK',
-      });
+      showAlert('Missing Content', 'Please enter content for your post', 'error');
       return;
     }
 
@@ -70,15 +94,15 @@ const CreatePostScreen = () => {
       const accessToken = await AsyncStorage.getItem('accessToken');
       
       if (!accessToken) {
-        Dialog.show({
-          type: ALERT_TYPE.WARNING,
-          title: 'Authentication Error',
-          textBody: 'Please login to create a post',
-          button: 'Login',
-          onPressButton: () => {
+        showAlert(
+          'Authentication Error', 
+          'Please login to create a post', 
+          'warning', 
+          true,
+          () => {
             navigation.navigate('LoginScreen', { redirectTo: 'CreatePost' });
           }
-        });
+        );
         return;
       }
 
@@ -98,42 +122,55 @@ const CreatePostScreen = () => {
         }
       );
 
-      if (response.data.success) {
+      if (response.data.status === 'success') {
         // Clear form fields immediately
         setTitle('');
         setContent('');
         setCategory('general');
         
         // Show success message
-        Dialog.show({
-          type: ALERT_TYPE.SUCCESS,
-          title: 'Post Published',
-          textBody: 'Your post has been published successfully!',
-          button: 'View Posts',
-          onPressButton: () => {
+        showAlert(
+          'Post Published', 
+          'Your post has been published successfully!', 
+          'success',
+          false,
+          () => {
             // Navigate to ForumScreen and reset the navigation stack
             navigation.reset({
               index: 0,
               routes: [{ name: 'ForumScreen' }],
             });
           }
-        });
+        );
       }
     } catch (error) {
       console.error('Error creating post:', error);
       
       let errorMessage = 'Failed to create post. Please try again.';
-      if (axios.isAxiosError(error) && error.response?.data?.message) {
-        errorMessage = error.response.data.message;
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 401) {
+          errorMessage = 'Session expired. Please login again.';
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        }
       }
       
-      Toast.show({
-        type: ALERT_TYPE.DANGER,
-        title: 'Error',
-        textBody: errorMessage,
-      });
+      showAlert('Error', errorMessage, 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getButtonColor = () => {
+    switch (alertConfig.type) {
+      case 'success':
+        return '#8BC34A';
+      case 'error':
+        return '#F44336';
+      case 'warning':
+        return '#FF9800';
+      default:
+        return '#8BC34A';
     }
   };
 
@@ -240,6 +277,41 @@ const CreatePostScreen = () => {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Custom Alert Modal */}
+      <Modal
+        visible={alertVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancel}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.alertContainer}>
+            <Text style={styles.alertTitle}>{alertConfig.title}</Text>
+            <Text style={styles.alertMessage}>{alertConfig.message}</Text>
+            
+            <View style={styles.alertButtons}>
+              {alertConfig.showCancel && (
+                <TouchableOpacity
+                  style={[styles.alertButton, styles.cancelButton]}
+                  onPress={handleCancel}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              )}
+              
+              <TouchableOpacity
+                style={[styles.alertButton, { backgroundColor: getButtonColor() }]}
+                onPress={handleConfirm}
+              >
+                <Text style={styles.confirmButtonText}>
+                  {alertConfig.type === 'warning' ? 'Login' : 'OK'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -407,6 +479,68 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 16,
+  },
+  // Custom Alert Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  alertContainer: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#5D4037',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  alertMessage: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  alertButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  alertButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#A0AEC0',
+  },
+  confirmButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

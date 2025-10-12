@@ -17,6 +17,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AlertPro from 'react-native-alert-pro';
@@ -29,8 +30,8 @@ interface ForumPost {
   category: string;
   author: {
     _id: string;
-    username?: string;  // Make username optional
-    name?: string;      // Add name field
+    username?: string;
+    name?: string;
     avatar?: string;
   };
   createdAt: string;
@@ -46,7 +47,7 @@ interface ForumPost {
 interface UserInfo {
   _id: string;
   username: string;
-  name: string;  // Add name field
+  name: string;
   role: string;
 }
 
@@ -75,14 +76,10 @@ const ForumScreen = () => {
         if (accessToken) {
           setIsAuthenticated(true);
           
-          // Get user info from storage first
           const userInfoString = await AsyncStorage.getItem('userInfo');
           if (userInfoString) {
             const storedUserInfo = JSON.parse(userInfoString);
             setUserInfo(storedUserInfo);
-            
-            // Fetch complete user profile from API
-            await fetchUserProfile(storedUserInfo.id || storedUserInfo._id, accessToken);
           }
         } else {
           setIsAuthenticated(false);
@@ -96,34 +93,6 @@ const ForumScreen = () => {
 
     checkAuthStatus();
   }, []);
-
-  const fetchUserProfile = async (userId: string, accessToken: string) => {
-    try {
-      const response = await axios.get(
-        `${Config.API_BASE_URL}/auth/users/${userId}`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        }
-      );
-
-      if (response.data) {
-        const fullUserInfo = {
-          _id: response.data._id,
-          username: response.data.username || response.data.email,
-          name: response.data.name,
-          role: response.data.role
-        };
-        
-        setUserInfo(fullUserInfo);
-        
-        // Update stored user info with complete profile
-        await AsyncStorage.setItem('userInfo', JSON.stringify(fullUserInfo));
-      }
-    } catch (error) {
-      console.error("Error fetching user profile:", error);
-      // Don't show error to user, just use stored info
-    }
-  };
 
   const categories = [
     { id: "all", name: "All", icon: "view-grid-outline" },
@@ -144,27 +113,32 @@ const ForumScreen = () => {
       setLoading(true);
       let url = `${Config.API_BASE_URL}/forum`;
       
+      // Build query parameters
+      const params = new URLSearchParams();
+      
       if (activeCategory !== "all") {
-        url = `${Config.API_BASE_URL}/forum/category/${activeCategory}`;
+        params.append('category', activeCategory);
       }
       
       if (searchQuery) {
-        url += `?search=${searchQuery}`;
+        params.append('search', searchQuery);
       }
+      
+      const queryString = params.toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
+      
+      console.log("Fetching posts from:", url);
       
       const response = await axios.get(url);
       
-      // Debug: Log the response to see the data structure
-      console.log("Forum posts response:", JSON.stringify(response.data, null, 2));
-      
-      // Check if posts have author information
-      if (response.data.data && response.data.data.posts) {
-        response.data.data.posts.forEach((post: ForumPost, index: number) => {
-          console.log(`Post ${index} author:`, post.author);
-        });
+      // Updated response structure check
+      if (response.data.status === 'success' && response.data.data && response.data.data.posts) {
+        setPosts(response.data.data.posts);
+      } else {
+        throw new Error('Invalid response structure');
       }
-      
-      setPosts(response.data.data.posts);
     } catch (error) {
       console.error("Error fetching posts:", error);
       showAlert('danger','Connection Error','Could not connect to the server. Please check your internet connection.');
@@ -214,21 +188,21 @@ const ForumScreen = () => {
       }
 
       const response = await axios.post(
-        `${Config.API_BASE_URL}/posts/${postId}/pin`,
+        `${Config.API_BASE_URL}/forum/${postId}/pin`,
         {},
         {
           headers: { Authorization: `Bearer ${accessToken}` }
         }
       );
 
-      if (response.data.success) {
-        const post = posts.find(p => p._id === postId);
+      if (response.data.status === 'success') {
+        // Update the post in the local state
         setPosts(posts.map(post => 
           post._id === postId 
             ? { ...post, isPinned: !post.isPinned } 
             : post
         ));
-        showAlert('success','Success',`Post ${post?.isPinned ? 'unpinned' : 'pinned'} successfully!`);
+        showAlert('success','Success',`Post ${response.data.data.post.isPinned ? 'pinned' : 'unpinned'} successfully!`);
       }
     } catch (error) {
       console.error("Error pinning post:", error);
@@ -249,21 +223,21 @@ const ForumScreen = () => {
       }
 
       const response = await axios.post(
-        `${Config.API_BASE_URL}/posts/${postId}/close`,
+        `${Config.API_BASE_URL}/forum/${postId}/close`,
         {},
         {
           headers: { Authorization: `Bearer ${accessToken}` }
         }
       );
 
-      if (response.data.success) {
-        const post = posts.find(p => p._id === postId);
+      if (response.data.status === 'success') {
+        // Update the post in the local state
         setPosts(posts.map(post => 
           post._id === postId 
             ? { ...post, isClosed: !post.isClosed } 
             : post
         ));
-        showAlert('success','Success',`Post ${post?.isClosed ? 'reopened' : 'closed'} successfully!`);
+        showAlert('success','Success',`Post ${response.data.data.post.isClosed ? 'closed' : 'reopened'} successfully!`);
       }
     } catch (error) {
       console.error("Error closing post:", error);
@@ -294,13 +268,13 @@ const ForumScreen = () => {
             onPress: async () => {
               try {
                 const response = await axios.delete(
-                  `${Config.API_BASE_URL}/posts/${postId}`,
+                  `${Config.API_BASE_URL}/forum/${postId}`,
                   {
                     headers: { Authorization: `Bearer ${accessToken}` }
                   }
                 );
 
-                if (response.data.success || response.status === 204) {
+                if (response.data.status === 'success' || response.status === 204) {
                   setPosts(posts.filter(post => post._id !== postId));
                   showAlert('success','Success','Post deleted successfully!');
                 }
@@ -329,37 +303,19 @@ const ForumScreen = () => {
 
   const canModifyPost = (post: ForumPost) => {
     if (!userInfo) return false;
-    return userInfo.role === 'Admin' || 
+    return userInfo.role === 'admin' || 
            userInfo.role === 'moderator' || 
            post.author._id === userInfo._id;
   };
 
   const canPinPost = () => {
     if (!userInfo) return false;
-    return userInfo.role === 'Admin' || userInfo.role === 'moderator';
+    return userInfo.role === 'admin' || userInfo.role === 'moderator';
   };
 
-  // Add a function to get display name
   const getDisplayName = (author: ForumPost['author']) => {
-    console.log("Author object:", author);
-    
-    if (!author) {
-      console.log("No author object found");
-      return 'Anonymous';
-    }
-    
-    if (author.name) {
-      console.log("Using author.name:", author.name);
-      return author.name;
-    }
-    
-    if (author.username) {
-      console.log("Using author.username:", author.username);
-      return author.username;
-    }
-    
-    console.log("No name or username found, using Anonymous");
-    return 'Anonymous';
+    if (!author) return 'Anonymous';
+    return author.name || author.username || 'Anonymous';
   };
 
   const renderPostItem = ({ item }: { item: ForumPost }) => (
@@ -421,12 +377,17 @@ const ForumScreen = () => {
             
             <View style={styles.statItem}>
               <Icon name="comment" size={12} color="#8D6E63" />
-              <Text style={styles.statText}>{item.comments.length}</Text>
+              <Text style={styles.statText}>{item.comments?.length || 0}</Text>
             </View>
             
             <View style={styles.statItem}>
               <Icon name="eye" size={12} color="#8D6E63" />
-              <Text style={styles.statText}>{item.views}</Text>
+              <Text style={styles.statText}>{item.views || 0}</Text>
+            </View>
+
+            <View style={styles.statItem}>
+              <Icon name="thumb-up" size={12} color="#8D6E63" />
+              <Text style={styles.statText}>{item.upvotes || 0}</Text>
             </View>
           </View>
         </View>
@@ -508,7 +469,6 @@ const ForumScreen = () => {
     />
   );
 
-  // Optional: Add user greeting in header if you want to show current user's name
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F5F5F5" />
@@ -595,7 +555,7 @@ const ForumScreen = () => {
         />
       )}
 
-      {/* Place AlertPro at root so it can overlay */}
+      {/* Alert Component */}
       <AlertPro
         ref={alertRef}
         onConfirm={() => alertRef.current?.close()}
@@ -626,10 +586,61 @@ const ForumScreen = () => {
   );
 };
 
+// ... (styles remain the same as in your original code)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F5F5F5",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+    backgroundColor: "#FFF8F0",
+  },
+  errorCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F5F0EB",
+    width: 320,
+    maxWidth: "100%",
+  },
+  errorIconContainer: {
+    marginBottom: 12,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#EF4444",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: "#A1887F",
+    marginBottom: 18,
+    textAlign: "center",
+  },
+  retryButton: {
+    backgroundColor: "#8BC34A",
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  retryButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 15,
   },
   headerContainer: {
     backgroundColor: "#FFF8F0",
@@ -924,6 +935,12 @@ const styles = StyleSheet.create({
     color: "#8D6E63",
     fontWeight: "400",
     marginTop: 2,
+  },
+    backButton: {
+    padding: 4,
+  },
+    headerRight: {
+    width: 40,
   },
 });
 

@@ -15,7 +15,7 @@ import { Dropdown } from "react-native-element-dropdown";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Calendar } from "react-native-calendars";
 import Config from "../Config/config";
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DatePicker from 'react-native-date-picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 // Import the new notification library
 import AlertPro from 'react-native-alert-pro';
@@ -867,11 +867,9 @@ const SmartCropCalendarScreen = () => {
     }
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
+  const handleDateChange = (date: Date) => {
+    setStartDate(date);
     setShowDatePicker(false);
-    if (selectedDate) {
-      setStartDate(selectedDate);
-    }
   };
 
   const showDatepicker = () => {
@@ -1006,14 +1004,14 @@ const SmartCropCalendarScreen = () => {
         </Text>
         <Icon name="keyboard-arrow-down" size={20} color="#4B5563" />
       </TouchableOpacity>
-      {showDatePicker && (
-        <DateTimePicker
-          value={startDate}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleDateChange}
-        />
-      )}
+      <DatePicker
+        modal
+        open={showDatePicker}
+        date={startDate}
+        mode="date"
+        onConfirm={handleDateChange}
+        onCancel={() => setShowDatePicker(false)}
+      />
     </View>
   );
 
@@ -1520,11 +1518,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     flexDirection: 'row',
     overflow: 'hidden',
   },
@@ -1673,11 +1668,8 @@ const styles = StyleSheet.create({
   },
   selectorButtonActive: {
     backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   selectorText: {
     fontSize: 14,
@@ -1719,11 +1711,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   formHeader: {
     flexDirection: 'row',
@@ -1827,11 +1816,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   calendar: {
     borderRadius: 8,
@@ -1884,11 +1870,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   activityCardHeader: {
     flexDirection: 'row',

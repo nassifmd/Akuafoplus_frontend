@@ -573,7 +573,7 @@ const LearnToGrowScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  // Base containers (keep the same as before)
+  // Base containers
   container: {
     flex: 1,
     backgroundColor: "#F8F9FA",
@@ -597,7 +597,7 @@ const styles = StyleSheet.create({
     color: "#6B7280",
   },
 
-  // Header styles (keep the same as before)
+  // Header styles
   headerContainer: {
     paddingHorizontal: 24,
     paddingTop: 16,
@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // Tab styles (keep the same as before)
+  // Tab styles - shadows removed
   tabContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -624,11 +624,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     borderRadius: 12,
     padding: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
   },
   tabButton: {
     flex: 1,
@@ -652,7 +647,7 @@ const styles = StyleSheet.create({
     color: "#FFF",
   },
 
-  // List styles (keep the same as before)
+  // List styles
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 24,
@@ -670,17 +665,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Card styles (keep the same as before)
+  // Card styles - shadows removed
   card: {
     backgroundColor: "#FFF",
     borderRadius: 16,
     marginBottom: 16,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
   },
   cardImageContainer: {
     height: 160,
@@ -737,7 +727,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
 
-  // Detail view styles (keep the same as before)
+  // Detail view styles
   detailHeader: {
     padding: 16,
     flexDirection: "row",
@@ -776,9 +766,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "700",
     color: "#FFF",
-    textShadowColor: "rgba(0,0,0,0.3)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   detailCategory: {
     position: "absolute",
@@ -787,9 +774,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
     color: "#FFF",
-    textShadowColor: "rgba(0,0,0,0.3)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   sampleImagesContainer: {
     paddingHorizontal: 16,
@@ -816,7 +800,7 @@ const styles = StyleSheet.create({
     color: "#4B5563",
   },
 
-  // Section styles (keep the same as before)
+  // Section styles
   sectionContainer: {
     paddingHorizontal: 16,
     marginTop: 16,
@@ -833,7 +817,7 @@ const styles = StyleSheet.create({
     color: "#4B5563",
   },
 
-  // Key info cards (keep the same as before)
+  // Key info cards - shadows removed
   keyInfoContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -847,11 +831,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
@@ -868,7 +847,7 @@ const styles = StyleSheet.create({
     color: "#1F2937",
   },
 
-  // NEW: Management grid styles
+  // Management grid styles
   managementGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -894,7 +873,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // Varieties/Breeds styles (keep the same as before)
+  // Varieties/Breeds styles
   varietiesGrid: {
     flexDirection: "row",
     flexWrap: "wrap",

@@ -2093,11 +2093,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 10,
     padding: 5,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity:  0.1,
-    shadowRadius: 4,
   },
   tabButton: {
     flex: 1,
@@ -2123,11 +2118,6 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: '#fff',
     borderRadius: 12,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
   },
   sectionTitle: {
     fontSize: 18,
@@ -2235,7 +2225,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
-    elevation: 2,
   },
   priceButtonText: {
     color: '#fff',
@@ -2250,7 +2239,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 8,
     marginTop: 16,
-    elevation: 3,
   },
   calculateButtonText: {
     color: '#fff',
@@ -2265,7 +2253,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    elevation: 2,
   },
   sectionHeader: {
     flexDirection: 'row',

@@ -546,13 +546,13 @@ const ExpertDetailsScreen: React.FC = () => {
         )}
 
         <View style={styles.actionButtons}>
-          <TouchableOpacity 
+          {/* <TouchableOpacity 
             style={styles.contactButton}
             onPress={handleContactExpert}
           >
             <MaterialIcons name="contact-phone" size={20} color="#10B981" />
             <Text style={styles.contactButtonText}>Contact</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
           
           <TouchableOpacity 
             style={[

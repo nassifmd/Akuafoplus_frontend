@@ -241,9 +241,9 @@ const KnowledgeScreen = ({ navigation }: any) => {
             <Text style={styles.readMoreText}>Read Article</Text>
             <Icon name="arrow-forward" size={16} color="#10B981" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.bookmarkButton}>
+          {/* <TouchableOpacity style={styles.bookmarkButton}>
             <Icon name="bookmark-border" size={20} color="#9CA3AF" />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       </View>
     </TouchableOpacity>
@@ -277,9 +277,9 @@ const KnowledgeScreen = ({ navigation }: any) => {
             <Text style={styles.headerTitle}>Knowledge Base</Text>
             <Text style={styles.headerSubtitle}>Expert farming advice & guides</Text>
           </View>
-          <TouchableOpacity style={styles.searchButton}>
+          {/* <TouchableOpacity style={styles.searchButton}>
             <Icon name="search" size={24} color="#374151" />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       </Animated.View>
 
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: 20,
     paddingHorizontal: 24,
-    paddingBottom: 8, // Reduced padding
+    paddingBottom: 8,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
@@ -451,9 +451,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   categorySection: {
-    paddingHorizontal: 24,
-    paddingTop: 16, // Increased padding for better spacing
-    paddingBottom: 20, // Increased padding
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 10,
     backgroundColor: "#FFFFFF",
   },
   categoryContainer: {
@@ -462,32 +462,22 @@ const styles = StyleSheet.create({
   categoryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 18, // Increased padding
-    paddingVertical: 14, // Increased padding
+    paddingHorizontal: 5,
+    paddingVertical: 5,
     borderRadius: 16,
-    marginRight: 12,
+    marginRight: 10,
     backgroundColor: "#F9FAFB",
     borderWidth: 1,
     borderColor: "#F3F4F6",
-    minWidth: 100, // Minimum width for better touch targets
+    minWidth: 100,
   },
   activeCategoryButton: {
     backgroundColor: "#10B981",
     borderColor: "#10B981",
-    shadowColor: "#10B981",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   activeAllCategoryButton: {
     backgroundColor: "#3B82F6",
     borderColor: "#3B82F6",
-    shadowColor: "#3B82F6",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   categoryIconContainer: {
     width: 36,
@@ -495,7 +485,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10, // Slightly increased margin
+    marginRight: 10,
   },
   categoryText: {
     fontSize: 15,
@@ -511,16 +501,16 @@ const styles = StyleSheet.create({
   listSection: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 8, // Reduced top padding since stats bar is removed
+    paddingTop: 8,
   },
   listHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20, // Increased margin for better separation
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 22, // Slightly larger for better hierarchy
+    fontSize: 22,
     fontWeight: "700",
     color: "#111827",
   },
@@ -540,16 +530,11 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 2,
     borderWidth: 1,
     borderColor: "#F3F4F6",
-    marginBottom: 16, // Added margin bottom instead of separator
+    marginBottom: 16,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -673,11 +658,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: "#10B981",
     borderRadius: 12,
-    shadowColor: "#10B981",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   refreshButtonText: {
     color: "white",
@@ -686,7 +666,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   separator: {
-    height: 0, // Using marginBottom on cards instead
+    height: 0,
   },
 });
 

@@ -426,17 +426,14 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
 
-  // Card - Compact
+  // Card - Compact (shadows removed)
   card: {
     backgroundColor: COLORS.white,
     padding: 12,
     marginBottom: 10,
     borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
   },
   cardHeader: {
     flexDirection: 'row',

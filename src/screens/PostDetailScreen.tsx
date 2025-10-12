@@ -18,7 +18,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Config from '../Config/config';
-import { ALERT_TYPE, Dialog, Toast } from 'react-native-alert-notification';
+import AlertPro from 'react-native-alert-pro';
 
 // Types
 type PostDetailScreenRouteProp = RouteProp<
@@ -60,6 +60,8 @@ interface ForumPost {
   isPinned: boolean;
   isClosed: boolean;
   voteScore: number;
+  upvotedBy?: string[];
+  downvotedBy?: string[];
 }
 
 const PostDetailScreen = () => {
@@ -71,6 +73,9 @@ const PostDetailScreen = () => {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [userInfo, setUserInfo] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userVoteStatus, setUserVoteStatus] = useState<'upvoted' | 'downvoted' | null>(null);
+  const [isVoting, setIsVoting] = useState(false);
+  const [alertProRef, setAlertProRef] = useState<any>(null);
 
   const route = useRoute<PostDetailScreenRouteProp>();
   const navigation = useNavigation<PostDetailScreenNavigationProp>();
@@ -85,11 +90,13 @@ const PostDetailScreen = () => {
           setIsAuthenticated(true);
           const userInfoString = await AsyncStorage.getItem('userInfo');
           if (userInfoString) {
-            setUserInfo(JSON.parse(userInfoString));
+            const userData = JSON.parse(userInfoString);
+            setUserInfo(userData);
           }
         } else {
           setIsAuthenticated(false);
           setUserInfo(null);
+          setUserVoteStatus(null);
         }
       } catch (error) {
         console.error('Error checking auth status:', error);
@@ -99,6 +106,33 @@ const PostDetailScreen = () => {
 
     checkAuthStatus();
   }, []);
+
+  // Determine user's vote status from post data
+  const updateUserVoteStatus = () => {
+    if (!post || !userInfo) {
+      setUserVoteStatus(null);
+      return;
+    }
+
+    const userId = userInfo._id || userInfo.id;
+    if (!userId) {
+      setUserVoteStatus(null);
+      return;
+    }
+
+    // Check if user has upvoted
+    if (post.upvotedBy && post.upvotedBy.includes(userId)) {
+      setUserVoteStatus('upvoted');
+    } 
+    // Check if user has downvoted
+    else if (post.downvotedBy && post.downvotedBy.includes(userId)) {
+      setUserVoteStatus('downvoted');
+    } 
+    // User hasn't voted
+    else {
+      setUserVoteStatus(null);
+    }
+  };
 
   // Fetch post and comments
   useEffect(() => {
@@ -113,26 +147,39 @@ const PostDetailScreen = () => {
         const postResponse = await axios.get(`${Config.API_BASE_URL}/forum/${postId}`);
         
         // Check for the correct response structure
-        if (!postResponse.data || !postResponse.data.data || !postResponse.data.data.post) {
+        if (postResponse.data.status === 'success' && postResponse.data.data.post) {
+          const postData = postResponse.data.data.post;
+          setPost(postData);
+          
+          // Update user vote status after post is loaded
+          updateUserVoteStatus();
+        } else {
           throw new Error('Failed to fetch post: Invalid response structure');
         }
         
-        setPost(postResponse.data.data.post);
-        
         // Fetch comments
-        console.log(`Fetching comments from: ${Config.API_BASE_URL}/posts/${postId}/comments`);
-        const commentsResponse = await axios.get(`${Config.API_BASE_URL}/posts/${postId}/comments`);
+        console.log(`Fetching comments from: ${Config.API_BASE_URL}/forum/${postId}/comments`);
+        const commentsResponse = await axios.get(`${Config.API_BASE_URL}/forum/${postId}/comments`);
         
         // Check for the correct response structure
-        if (!commentsResponse.data || !commentsResponse.data.data || !commentsResponse.data.data.comments) {
+        if (commentsResponse.data.status === 'success' && commentsResponse.data.data.comments) {
+          setComments(commentsResponse.data.data.comments);
+        } else {
           throw new Error('Failed to fetch comments: Invalid response structure');
         }
         
-        setComments(commentsResponse.data.data.comments);
       } catch (error) {
         console.error('Error fetching post details:', error);
         let errorMessage = 'Failed to load post details';
+        
         if (axios.isAxiosError(error)) {
+          console.log('Axios error details:', {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+            url: error.config?.url
+          });
+          
           if (error.response?.status === 404) {
             errorMessage = 'Post not found';
           } else if (error.response?.status === 500) {
@@ -143,6 +190,7 @@ const PostDetailScreen = () => {
         } else if (error instanceof Error) {
           errorMessage = error.message;
         }
+        
         setError(errorMessage);
       } finally {
         setLoading(false);
@@ -154,14 +202,27 @@ const PostDetailScreen = () => {
     }
   }, [postId]);
 
+  // Update vote status when post or userInfo changes
+  useEffect(() => {
+    updateUserVoteStatus();
+  }, [post, userInfo]);
+
+  // Show toast notification
+  const showToast = (message: string, type: 'success' | 'error' | 'warning' = 'success') => {
+    if (alertProRef.current) {
+      alertProRef.current.show({
+        title: type === 'success' ? 'Success' : type === 'error' ? 'Error' : 'Warning',
+        message: message,
+        onPress: () => alertProRef.current?.close(),
+        textConfirm: 'OK',
+      });
+    }
+  };
+
   // Submit comment
   const handleSubmitComment = async () => {
     if (!commentText.trim()) {
-      Toast.show({
-        type: ALERT_TYPE.DANGER,
-        title: 'Error',
-        textBody: 'Comment cannot be empty',
-      });
+      showToast('Comment cannot be empty', 'error');
       return;
     }
 
@@ -170,26 +231,28 @@ const PostDetailScreen = () => {
       const accessToken = await AsyncStorage.getItem('accessToken');
       
       if (!accessToken) {
-        Dialog.show({
-          type: ALERT_TYPE.WARNING,
-          title: 'Authentication Required',
-          textBody: 'Please login to comment',
-          button: 'Login',
-          onPressButton: () => {
-            Dialog.hide();
-            navigation.navigate('LoginScreen', { 
-              redirectTo: 'PostDetail', 
-              params: { postId } 
-            });
-          }
-        });
+        if (alertProRef) {
+          alertProRef.show({
+            title: 'Authentication Required',
+            message: 'Please login to comment',
+            textCancel: 'Cancel',
+            textConfirm: 'Login',
+            onConfirm: () => {
+              alertProRef.close();
+              navigation.navigate('LoginScreen', { 
+                redirectTo: 'PostDetail', 
+                params: { postId } 
+              });
+            },
+          });
+        }
         return;
       }
 
-      console.log(`Posting comment to: ${Config.API_BASE_URL}/posts/${postId}/comments`);
+      console.log(`Posting comment to: ${Config.API_BASE_URL}/forum/${postId}/comments`);
       
       const response = await axios.post(
-        `${Config.API_BASE_URL}/posts/${postId}/comments`,
+        `${Config.API_BASE_URL}/forum/${postId}/comments`,
         { content: commentText },
         {
           headers: {
@@ -201,13 +264,9 @@ const PostDetailScreen = () => {
 
       if (response.data?.status === 'success') {
         const newComment = response.data.data.comment;
-        setComments([newComment, ...comments]);
+        setComments(prevComments => [newComment, ...prevComments]);
         setCommentText('');
-        Toast.show({
-          type: ALERT_TYPE.SUCCESS,
-          title: 'Success',
-          textBody: 'Comment posted successfully',
-        });
+        showToast('Comment posted successfully', 'success');
       } else {
         throw new Error('Failed to post comment: Invalid response structure');
       }
@@ -217,15 +276,13 @@ const PostDetailScreen = () => {
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 401) {
           errorMessage = 'Session expired. Please login again';
+        } else if (error.response?.status === 403) {
+          errorMessage = 'This post is closed. No new comments allowed.';
         } else if (error.message) {
           errorMessage = error.message;
         }
       }
-      Toast.show({
-        type: ALERT_TYPE.DANGER,
-        title: 'Error',
-        textBody: errorMessage,
-      });
+      showToast(errorMessage, 'error');
     } finally {
       setSubmittingComment(false);
     }
@@ -233,22 +290,27 @@ const PostDetailScreen = () => {
 
   // Upvote post
   const handleUpvote = async () => {
+    if (!post || isVoting) return;
+
     try {
+      setIsVoting(true);
       const accessToken = await AsyncStorage.getItem('accessToken');
       if (!accessToken) {
-        Dialog.show({
-          type: ALERT_TYPE.WARNING,
-          title: 'Authentication Required',
-          textBody: 'Please login to vote',
-          button: 'Login',
-          onPressButton: () => {
-            Dialog.hide();
-            navigation.navigate('LoginScreen', { 
-              redirectTo: 'PostDetail', 
-              params: { postId } 
-            });
-          }
-        });
+        if (alertProRef) {
+          alertProRef.show({
+            title: 'Authentication Required',
+            message: 'Please login to vote',
+            textCancel: 'Cancel',
+            textConfirm: 'Login',
+            onConfirm: () => {
+              alertProRef.close();
+              navigation.navigate('LoginScreen', { 
+                redirectTo: 'PostDetail', 
+                params: { postId } 
+              });
+            },
+          });
+        }
         return;
       }
 
@@ -262,39 +324,60 @@ const PostDetailScreen = () => {
         }
       );
 
-      if (response.data?.status === 'success' && response.data?.data?.post && post) {
-        setPost(response.data.data.post);
+      if (response.data?.status === 'success' && response.data?.data?.post) {
+        const updatedPost = response.data.data.post;
+        setPost(updatedPost);
+        
+        // Update local vote status immediately for better UX
+        if (userVoteStatus === 'upvoted') {
+          // User is removing upvote
+          setUserVoteStatus(null);
+        } else {
+          // User is adding upvote (remove downvote if exists)
+          setUserVoteStatus('upvoted');
+        }
+
+        showToast(userVoteStatus === 'upvoted' ? 'Upvote removed' : 'Post upvoted', 'success');
       } else {
         throw new Error('Failed to upvote: Invalid response structure');
       }
     } catch (error) {
       console.error('Error upvoting post:', error);
-      Toast.show({
-        type: ALERT_TYPE.DANGER,
-        title: 'Error',
-        textBody: 'Failed to upvote post',
-      });
+      let errorMessage = 'Failed to upvote post';
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 400) {
+          errorMessage = error.response.data.message || 'You have already upvoted this post';
+        }
+      }
+      showToast(errorMessage, 'error');
+    } finally {
+      setIsVoting(false);
     }
   };
 
   // Downvote post
   const handleDownvote = async () => {
+    if (!post || isVoting) return;
+
     try {
+      setIsVoting(true);
       const accessToken = await AsyncStorage.getItem('accessToken');
       if (!accessToken) {
-        Dialog.show({
-          type: ALERT_TYPE.WARNING,
-          title: 'Authentication Required',
-          textBody: 'Please login to vote',
-          button: 'Login',
-          onPressButton: () => {
-            Dialog.hide();
-            navigation.navigate('LoginScreen', { 
-              redirectTo: 'PostDetail', 
-              params: { postId } 
-            });
-          }
-        });
+        if (alertProRef) {
+          alertProRef.show({
+            title: 'Authentication Required',
+            message: 'Please login to vote',
+            textCancel: 'Cancel',
+            textConfirm: 'Login',
+            onConfirm: () => {
+              alertProRef.close();
+              navigation.navigate('LoginScreen', { 
+                redirectTo: 'PostDetail', 
+                params: { postId } 
+              });
+            },
+          });
+        }
         return;
       }
 
@@ -308,18 +391,34 @@ const PostDetailScreen = () => {
         }
       );
 
-      if (response.data?.status === 'success' && response.data?.data?.post && post) {
-        setPost(response.data.data.post);
+      if (response.data?.status === 'success' && response.data?.data?.post) {
+        const updatedPost = response.data.data.post;
+        setPost(updatedPost);
+        
+        // Update local vote status immediately for better UX
+        if (userVoteStatus === 'downvoted') {
+          // User is removing downvote
+          setUserVoteStatus(null);
+        } else {
+          // User is adding downvote (remove upvote if exists)
+          setUserVoteStatus('downvoted');
+        }
+
+        showToast(userVoteStatus === 'downvoted' ? 'Downvote removed' : 'Post downvoted', 'success');
       } else {
         throw new Error('Failed to downvote: Invalid response structure');
       }
     } catch (error) {
       console.error('Error downvoting post:', error);
-      Toast.show({
-        type: ALERT_TYPE.DANGER,
-        title: 'Error',
-        textBody: 'Failed to downvote post',
-      });
+      let errorMessage = 'Failed to downvote post';
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 400) {
+          errorMessage = error.response.data.message || 'You have already downvoted this post';
+        }
+      }
+      showToast(errorMessage, 'error');
+    } finally {
+      setIsVoting(false);
     }
   };
 
@@ -369,9 +468,9 @@ const PostDetailScreen = () => {
                 setError(null);
                 const fetchData = async () => {
                   try {
-                    const postResponse = await axios.get(`${Config.API_BASE_URL}/posts/${postId}`);
+                    const postResponse = await axios.get(`${Config.API_BASE_URL}/forum/${postId}`);
                     setPost(postResponse.data.data.post);
-                    const commentsResponse = await axios.get(`${Config.API_BASE_URL}/posts/${postId}/comments`);
+                    const commentsResponse = await axios.get(`${Config.API_BASE_URL}/forum/${postId}/comments`);
                     setComments(commentsResponse.data.data.comments);
                     setError(null);
                   } catch (err) {
@@ -438,19 +537,55 @@ const PostDetailScreen = () => {
             
             <View style={styles.postStats}>
               <TouchableOpacity 
-                style={styles.voteContainer}
+                style={[
+                  styles.voteContainer,
+                  userVoteStatus === 'upvoted' && styles.activeUpvote,
+                  isVoting && styles.disabledVote
+                ]}
                 onPress={handleUpvote}
+                disabled={isVoting}
               >
-                <Icon name="thumb-up-outline" size={20} color="#2D5016" />
-                <Text style={styles.voteCount}>{post.upvotes}</Text>
+                {isVoting && userVoteStatus !== 'upvoted' ? (
+                  <ActivityIndicator size="small" color="#2D5016" />
+                ) : (
+                  <Icon 
+                    name={userVoteStatus === 'upvoted' ? "thumb-up" : "thumb-up-outline"} 
+                    size={20} 
+                    color={userVoteStatus === 'upvoted' ? "#2D5016" : "#2D5016"} 
+                  />
+                )}
+                <Text style={[
+                  styles.voteCount,
+                  userVoteStatus === 'upvoted' && styles.activeVoteCount
+                ]}>
+                  {post.upvotes}
+                </Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={styles.voteContainer}
+                style={[
+                  styles.voteContainer,
+                  userVoteStatus === 'downvoted' && styles.activeDownvote,
+                  isVoting && styles.disabledVote
+                ]}
                 onPress={handleDownvote}
+                disabled={isVoting}
               >
-                <Icon name="thumb-down-outline" size={20} color="#8B4513" />
-                <Text style={styles.voteCount}>{post.downvotes}</Text>
+                {isVoting && userVoteStatus !== 'downvoted' ? (
+                  <ActivityIndicator size="small" color="#8B4513" />
+                ) : (
+                  <Icon 
+                    name={userVoteStatus === 'downvoted' ? "thumb-down" : "thumb-down-outline"} 
+                    size={20} 
+                    color={userVoteStatus === 'downvoted' ? "#8B4513" : "#8B4513"} 
+                  />
+                )}
+                <Text style={[
+                  styles.voteCount,
+                  userVoteStatus === 'downvoted' && styles.activeVoteCount
+                ]}>
+                  {post.downvotes}
+                </Text>
               </TouchableOpacity>
               
               <View style={styles.viewsContainer}>
@@ -558,6 +693,15 @@ const PostDetailScreen = () => {
           </View>
         )}
       </KeyboardAvoidingView>
+
+      {/* AlertPro Component */}
+      <AlertPro
+        ref={ref => setAlertProRef(ref)}
+        showCancel={false}
+        showConfirm={true}
+        textConfirm="OK"
+        onConfirm={() => alertProRef?.close()}
+      />
     </SafeAreaView>
   );
 };
@@ -678,6 +822,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     marginBottom: 16,
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
   voteContainer: {
     flexDirection: 'row',
@@ -686,8 +831,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    marginRight: 12,
+    marginRight: 8,
     gap: 4,
+    minWidth: 60,
+    justifyContent: 'center',
+  },
+  activeUpvote: {
+    backgroundColor: '#E8F5E8',
+    borderColor: '#2D5016',
+    borderWidth: 1,
+  },
+  activeDownvote: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#8B4513',
+    borderWidth: 1,
+  },
+  disabledVote: {
+    opacity: 0.6,
   },
   voteCount: {
     fontSize: 14,
@@ -696,10 +856,12 @@ const styles = StyleSheet.create({
     minWidth: 20,
     textAlign: 'center',
   },
+  activeVoteCount: {
+    fontWeight: '700',
+  },
   viewsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 'auto',
     backgroundColor: '#F8F8F2',
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -905,6 +1067,27 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: '#fff',
+    fontWeight: '600',
+  },
+  // AlertPro styles
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2D5016',
+  },
+  alertMessage: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+  },
+  alertConfirmButton: {
+    backgroundColor: '#2D5016',
+    borderRadius: 8,
+    paddingVertical: 12,
+  },
+  alertConfirmButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
   },
 });
