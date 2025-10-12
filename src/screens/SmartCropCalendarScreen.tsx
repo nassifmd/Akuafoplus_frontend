@@ -1029,7 +1029,7 @@ const SmartCropCalendarScreen = () => {
         <Icon 
           name="grass" 
           size={20} 
-          color={selectedForm === "crop" ? "#fff" : "#10B981"} 
+          color={selectedForm === "crop" ? "#000" : "#10B981"} 
         />
         <Text style={[
           styles.selectorText,
@@ -1049,7 +1049,7 @@ const SmartCropCalendarScreen = () => {
         <Icon 
           name="pets" 
           size={20} 
-          color={selectedForm === "livestock" ? "#fff" : "#3B82F6"} 
+          color={selectedForm === "livestock" ? "#000" : "#3B82F6"} 
         />
         <Text style={[
           styles.selectorText,
@@ -1069,7 +1069,7 @@ const SmartCropCalendarScreen = () => {
         <Icon 
           name="egg" 
           size={20} 
-          color={selectedForm === "poultry" ? "#fff" : "#F59E0B"} 
+          color={selectedForm === "poultry" ? "#000" : "#F59E0B"} 
         />
         <Text style={[
           styles.selectorText,

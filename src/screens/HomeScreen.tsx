@@ -366,7 +366,7 @@ const HomeScreen: React.FC = () => {
           <View style={styles.adCard}>
             <View style={styles.adContent}>
               <ActivityIndicator size="small" color="#4A6FA5" />
-              <Text style={styles.adTitle}>Loading featured content...</Text>
+              <Text style={styles.adTitle}>Loading ads...</Text>
             </View>
           </View>
         </Animated.View>
@@ -467,7 +467,10 @@ const HomeScreen: React.FC = () => {
           <TouchableOpacity
             onPress={() => navigation.navigate("SubscriptionScreen")}
             activeOpacity={0.8}
-            style={styles.upgradeButtonContainer}
+            style={[
+              styles.upgradeButtonContainer,
+              subscriptionPlan === "premium" && styles.premiumBadge
+            ]}
           >
             <LinearGradient
               colors={
@@ -491,56 +494,6 @@ const HomeScreen: React.FC = () => {
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Quick Actions */}
-        <Animated.View style={[styles.quickActionsContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-            <MaterialIcons name="flash-on" size={24} color="#4A6FA5" />
-          </View>
-          
-          <View style={styles.quickActionsGrid}>
-            <TouchableOpacity
-              onPress={() => navigation.navigate("ExpertScreen")}
-              activeOpacity={0.9}
-              style={styles.quickActionTouchable}
-            >
-              <LinearGradient
-                colors={['#43e97b', '#38f9d7']}
-                style={styles.quickActionButton}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <View style={styles.quickActionIcon}>
-                  <MaterialIcons name="support-agent" size={32} color="#fff" />
-                </View>
-                <Text style={styles.quickActionText}>Expert Advice</Text>
-                <Text style={styles.quickActionSubtext}>Connect with experts</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            
-            {/* <TouchableOpacity
-              onPress={() => navigation.navigate("FarmlandScreen")}
-              activeOpacity={0.9}
-              style={styles.quickActionTouchable}
-            >
-              <LinearGradient
-                colors={['#fa709a', '#fee140']}
-                style={styles.quickActionButton}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <View style={styles.quickActionIcon}>
-                  <MaterialIcons name="landscape" size={32} color="#fff" />
-                </View>
-                <Text style={styles.quickActionText}>Farm Land</Text>
-                <Text style={styles.quickActionSubtext}>Manage your fields</Text>
-              </LinearGradient>
-            </TouchableOpacity> */}
-          </View>
-        </Animated.View>
-
-        {/* Advertisement Carousel */}
-        {renderAdvertisementCarousel()}
 
         {/* Weather Section */}
         <Animated.View style={[styles.weatherContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
@@ -629,16 +582,68 @@ const HomeScreen: React.FC = () => {
                 </View>
               </View>
               
-              <TouchableOpacity 
+              {/* <TouchableOpacity 
                 style={styles.weatherDetailsButton}
                 onPress={() => console.log("View detailed forecast")}
               >
                 <Text style={styles.weatherDetailsText}>View detailed forecast</Text>
                 <MaterialIcons name="chevron-right" size={20} color="#4A6FA5" />
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </Animated.View>
           )}
         </Animated.View>
+
+        {/* Quick Actions */}
+        <Animated.View style={[styles.quickActionsContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <MaterialIcons name="flash-on" size={24} color="#4A6FA5" />
+          </View>
+          
+          <View style={styles.quickActionsGrid}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("ExpertScreen")}
+              activeOpacity={0.9}
+              style={styles.quickActionTouchable}
+            >
+              <LinearGradient
+                colors={['#43e97b', '#38f9d7']}
+                style={styles.quickActionButton}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.quickActionIcon}>
+                  <MaterialIcons name="support-agent" size={32} color="#fff" />
+                </View>
+                <Text style={styles.quickActionText}>Expert Advice</Text>
+                <Text style={styles.quickActionSubtext}>Connect with experts</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            
+            {/* <TouchableOpacity
+              onPress={() => navigation.navigate("FarmlandScreen")}
+              activeOpacity={0.9}
+              style={styles.quickActionTouchable}
+            >
+              <LinearGradient
+                colors={['#fa709a', '#fee140']}
+                style={styles.quickActionButton}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.quickActionIcon}>
+                  <MaterialIcons name="landscape" size={32} color="#fff" />
+                </View>
+                <Text style={styles.quickActionText}>Farm Land</Text>
+                <Text style={styles.quickActionSubtext}>Manage your fields</Text>
+              </LinearGradient>
+            </TouchableOpacity> */}
+          </View>
+        </Animated.View>
+
+        {/* Advertisement Carousel */}
+        {renderAdvertisementCarousel()}
+
       </ScrollView>
     </View>
   );
@@ -675,17 +680,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
   },
+  premiumBadge: {
+    borderWidth: 2,
+    borderColor: '#FFD700',
+  },
   upgradeButton: {
     paddingVertical: 10,
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#667eea",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
   upgradeButtonText: {
     color: "#fff",
@@ -698,11 +702,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   quickActionsGrid: {
     flexDirection: "row",
@@ -720,11 +721,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     height: 140,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
   },
   quickActionIcon: {
     width: 60,
@@ -752,11 +748,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   adCard: {
     backgroundColor: "#F8FAFC",
@@ -764,6 +757,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     position: "relative",
     height: 200,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   adImage: {
     width: "100%",
@@ -840,11 +835,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   sectionHeader: {
     flexDirection: "row",
@@ -864,6 +856,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEE2E2",
     borderRadius: 12,
     marginTop: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: "#E53935",
   },
   errorText: {
     color: "#B91C1C",
@@ -874,6 +868,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   weatherButton: {
     padding: 20,
@@ -904,11 +900,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   weatherDataRow: {
     flexDirection: "row",
@@ -922,11 +915,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginHorizontal: 6,
     alignItems: 'center',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
   },
   weatherDataLabel: {
     fontSize: 12,
@@ -952,44 +942,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 14,
     marginRight: 4,
-  },
-  resourcesContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  resourcesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  resourceItem: {
-    width: '48%',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  resourceIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  resourceText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1E293B',
-    textAlign: 'center',
   },
 });
 

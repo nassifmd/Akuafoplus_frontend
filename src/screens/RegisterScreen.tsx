@@ -19,6 +19,16 @@ import AlertPro from "react-native-alert-pro";
 
 const API_URL = `${Config.API_BASE_URL}/auth/register`;
 
+// Password requirements type
+interface PasswordRequirements {
+  hasMinLength: boolean;
+  hasUpperCase: boolean;
+  hasLowerCase: boolean;
+  hasNumber: boolean;
+  hasSpecialChar: boolean;
+  passwordsMatch: boolean;
+}
+
 const RegisterScreen = ({ navigation }: any) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -29,7 +39,8 @@ const RegisterScreen = ({ navigation }: any) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [role] = useState("user");
   const [loading, setLoading] = useState(false);
-  const [promoCode, setPromoCode] = useState(""); // <-- new
+  const [promoCode, setPromoCode] = useState("");
+  const [showPasswordRules, setShowPasswordRules] = useState(false);
 
   // Added for react-native-alert-pro
   const alertRef = useRef<any>(null);
@@ -37,11 +48,25 @@ const RegisterScreen = ({ navigation }: any) => {
   const [alertMessage, setAlertMessage] = useState('');
   const [alertType, setAlertType] = useState<'success' | 'error' | 'warning'>('error');
 
+  // Check password requirements
+  const checkPasswordRequirements = (): PasswordRequirements => {
+    return {
+      hasMinLength: password.length >= 8,
+      hasUpperCase: /[A-Z]/.test(password),
+      hasLowerCase: /[a-z]/.test(password),
+      hasNumber: /[0-9]/.test(password),
+      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
+      passwordsMatch: password === confirmPassword && password.length > 0
+    };
+  };
+
+  const passwordRequirements = checkPasswordRequirements();
+  const isPasswordValid = Object.values(passwordRequirements).every(requirement => requirement === true);
+
   const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' = 'error') => {
     setAlertTitle(title);
     setAlertMessage(message);
     setAlertType(type);
-    // Open modal
     requestAnimationFrame(() => alertRef.current?.open());
   };
 
@@ -51,12 +76,10 @@ const RegisterScreen = ({ navigation }: any) => {
   };
 
   const validatePhone = (phone: string): boolean => {
-    // Accepts 0XXXXXXXXX, +233XXXXXXXXX, or 233XXXXXXXXX
     const ghRegex = /^(0\d{9}|233\d{9}|\+233\d{9})$/;
     return ghRegex.test(phone.replace(/\s/g, ''));
   };
 
-  // Helper: Normalize phone to international format
   const normalizePhone = (phone: string): string => {
     let msisdn = phone.replace(/\s/g, '');
     if (msisdn.startsWith("0")) msisdn = "233" + msisdn.slice(1);
@@ -64,7 +87,6 @@ const RegisterScreen = ({ navigation }: any) => {
     return msisdn;
   };
 
-  // Helper: Check supported provider
   const isSupportedProvider = (msisdn: string): boolean => {
     return (
       msisdn.startsWith("23324") ||
@@ -80,20 +102,17 @@ const RegisterScreen = ({ navigation }: any) => {
   };
 
   const handleRegister = async () => {
-    // Trim all inputs
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
     const trimmedPhone = phone.trim();
     const trimmedPassword = password.trim();
     const trimmedConfirmPassword = confirmPassword.trim();
 
-    // Check for empty fields
     if (!trimmedName || !trimmedEmail || !trimmedPhone || !trimmedPassword || !trimmedConfirmPassword) {
       showAlert('Missing Information', 'All fields are required. Please fill in all the information.', 'warning');
       return;
     }
 
-    // Name validation
     if (trimmedName.length < 2) {
       showAlert('Invalid Name', 'Name must be at least 2 characters long.', 'warning');
       return;
@@ -101,34 +120,29 @@ const RegisterScreen = ({ navigation }: any) => {
 
     const emailLowerCase = trimmedEmail.toLowerCase();
 
-    // Email validation
     if (!validateEmail(emailLowerCase)) {
       showAlert('Invalid Email', 'Please enter a valid email address.', 'warning');
       return;
     }
 
-    // Phone validation
     if (!validatePhone(trimmedPhone)) {
       showAlert('Invalid Phone', 'Please enter a valid phone number.', 'warning');
       return;
     }
 
-    // Password validation
-    if (trimmedPassword.length < 6) {
-      showAlert('Weak Password', 'Password must be at least 6 characters long.', 'warning');
+    // Enhanced password validation
+    if (!isPasswordValid) {
+      showAlert('Weak Password', 'Please ensure your password meets all the requirements.', 'warning');
       return;
     }
 
-    // Password match validation
     if (trimmedPassword !== trimmedConfirmPassword) {
       showAlert('Password Mismatch', 'Passwords do not match. Please make sure both passwords are the same.', 'warning');
       return;
     }
 
-    // Normalize phone
     const normalizedPhone = normalizePhone(trimmedPhone);
 
-    // Check supported provider
     if (!isSupportedProvider(normalizedPhone)) {
       showAlert('Unsupported Provider', 'Please use an MTN, Vodafone, or Tigo number in Ghana.', 'warning');
       return;
@@ -142,7 +156,7 @@ const RegisterScreen = ({ navigation }: any) => {
         phone: normalizedPhone, 
         password: trimmedPassword, 
         role,
-       ...(promoCode ? { promoCode: promoCode.trim() } : {}) // include promoCode when provided
+        ...(promoCode ? { promoCode: promoCode.trim() } : {})
       };
 
       console.log('Attempting registration with:', { ...payload, password: '[HIDDEN]' });
@@ -158,7 +172,6 @@ const RegisterScreen = ({ navigation }: any) => {
         showAlert('Registration Successful', response.data.message, 'success');
         await AsyncStorage.setItem("userEmail", emailLowerCase);
         
-        // Navigate after a short delay to show the success message
         setTimeout(() => {
           navigation.replace("LoginScreen");
         }, 1500);
@@ -173,7 +186,6 @@ const RegisterScreen = ({ navigation }: any) => {
       if (error.response) {
         const status = error.response.status;
         if (status === 409 || status === 400) {
-          // Check for specific backend messages
           if (
             error.response.data?.message?.toLowerCase().includes("email") &&
             error.response.data?.message?.toLowerCase().includes("exist")
@@ -218,6 +230,8 @@ const RegisterScreen = ({ navigation }: any) => {
         value={value}
         onChangeText={setValue}
         editable={!loading}
+        onFocus={() => placeholder === "Password" && setShowPasswordRules(true)}
+        onBlur={() => placeholder === "Password" && setShowPasswordRules(false)}
       />
       <TouchableOpacity onPress={() => setVisible(!visible)} disabled={loading}>
         <MaterialIcons
@@ -226,6 +240,19 @@ const RegisterScreen = ({ navigation }: any) => {
           color="#8C735B"
         />
       </TouchableOpacity>
+    </View>
+  );
+
+  const renderPasswordRequirement = (met: boolean, text: string) => (
+    <View style={styles.requirementRow}>
+      <MaterialIcons
+        name={met ? "check-circle" : "radio-button-unchecked"}
+        size={16}
+        color={met ? "#388E3C" : "#8C735B"}
+      />
+      <Text style={[styles.requirementText, met && styles.requirementMet]}>
+        {text}
+      </Text>
     </View>
   );
 
@@ -246,14 +273,14 @@ const RegisterScreen = ({ navigation }: any) => {
           onChangeText={setName}
           editable={!loading}
         />
-       <TextInput
+        <TextInput
           style={styles.input}
           placeholder="Referral code (optional)"
           placeholderTextColor="#8C735B"
           value={promoCode}
           onChangeText={setPromoCode}
           editable={!loading}
-       />
+        />
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -276,12 +303,32 @@ const RegisterScreen = ({ navigation }: any) => {
         />
 
         {renderPasswordInput(password, setPassword, showPassword, setShowPassword, "Password")}
+        
+        {/* Password Requirements */}
+        {(showPasswordRules || password.length > 0) && (
+          <View style={styles.passwordRulesContainer}>
+            <Text style={styles.passwordRulesTitle}>Password must contain:</Text>
+            {renderPasswordRequirement(passwordRequirements.hasMinLength, "At least 8 characters")}
+            {renderPasswordRequirement(passwordRequirements.hasUpperCase, "One uppercase letter (A-Z)")}
+            {renderPasswordRequirement(passwordRequirements.hasLowerCase, "One lowercase letter (a-z)")}
+            {renderPasswordRequirement(passwordRequirements.hasNumber, "One number (0-9)")}
+            {renderPasswordRequirement(passwordRequirements.hasSpecialChar, "One special character (!@#$% etc.)")}
+          </View>
+        )}
+
         {renderPasswordInput(confirmPassword, setConfirmPassword, showConfirmPassword, setShowConfirmPassword, "Confirm Password")}
+        
+        {/* Password Match Indicator */}
+        {confirmPassword.length > 0 && (
+          <View style={styles.passwordMatchContainer}>
+            {renderPasswordRequirement(passwordRequirements.passwordsMatch, "Passwords match")}
+          </View>
+        )}
 
         <TouchableOpacity
-          style={[styles.button, loading && styles.disabledButton]}
+          style={[styles.button, (!isPasswordValid || loading) && styles.disabledButton]}
           onPress={handleRegister}
-          disabled={loading}
+          disabled={!isPasswordValid || loading}
           activeOpacity={0.8}
         >
           {loading ? (
@@ -298,7 +345,6 @@ const RegisterScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       </KeyboardAvoidingView>
 
-      {/* Added AlertPro component */}
       <AlertPro
         ref={alertRef}
         title={alertTitle}
@@ -384,6 +430,39 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: "#4E342E",
+  },
+  passwordRulesContainer: {
+    width: "100%",
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#D7CCC8",
+  },
+  passwordRulesTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4E342E",
+    marginBottom: 8,
+  },
+  passwordMatchContainer: {
+    width: "100%",
+    marginBottom: 16,
+  },
+  requirementRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  requirementText: {
+    fontSize: 12,
+    color: "#8C735B",
+    marginLeft: 8,
+  },
+  requirementMet: {
+    color: "#388E3C",
+    fontWeight: "500",
   },
   button: {
     width: "100%",
