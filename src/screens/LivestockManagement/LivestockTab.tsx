@@ -18,7 +18,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import Config from "../../Config/config";
 import { Picker } from "@react-native-picker/picker";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DatePicker from 'react-native-date-picker';
 import Ionicons from "react-native-vector-icons/Ionicons";
 
 const API_URL = `${Config.API_BASE_URL}/livestock`;
@@ -807,53 +807,52 @@ const LivestockTab = ({ navigation }: any) => {
     );
   };
 
-  interface FormStateMap {
-    animal: React.Dispatch<React.SetStateAction<typeof animalForm>>;
-    health: React.Dispatch<React.SetStateAction<typeof healthRecordForm>>;
-    breeding: React.Dispatch<React.SetStateAction<typeof breedingRecordForm>>;
-    weight: React.Dispatch<React.SetStateAction<typeof weightRecordForm>>;
-    fattening: React.Dispatch<React.SetStateAction<typeof fatteningRecordForm>>;
-    dailyWeight: React.Dispatch<React.SetStateAction<typeof dailyWeightForm>>;
-    feedAdjustment: React.Dispatch<React.SetStateAction<typeof feedAdjustmentForm>>;
-  }
-
-  type DatePickerField =
-    | "animal-dob"
-    | "health-date"
-    | "breeding-date"
-    | "weight-date"
-    | "fattening-startDate"
-    | "dailyWeight-date"
-    | "feedAdjustment-date"
-    | "breeding-expectedDeliveryDate"
-    | "breeding-actualDeliveryDate"
-    | string;
-
-  const handleDateChange = (
-    event: any,
-    selectedDate?: Date | undefined
-  ) => {
+  const handleDateChange = (date: Date) => {
     setShowDatePicker(false);
-    if (selectedDate) {
-      const formStateMap: FormStateMap = {
-        animal: setAnimalForm,
-        health: setHealthRecordForm,
-        breeding: setBreedingRecordForm,
-        weight: setWeightRecordForm,
-        fattening: setFatteningRecordForm,
-        dailyWeight: setDailyWeightForm,
-        feedAdjustment: setFeedAdjustmentForm,
-      };
+    
+    const formStateMap: any = {
+      animal: setAnimalForm,
+      health: setHealthRecordForm,
+      breeding: setBreedingRecordForm,
+      weight: setWeightRecordForm,
+      fattening: setFatteningRecordForm,
+      dailyWeight: setDailyWeightForm,
+      feedAdjustment: setFeedAdjustmentForm,
+    };
 
-      const formType = (datePickerField as string).split("-")[0] as keyof FormStateMap;
-      const fieldName = (datePickerField as string).split("-")[1];
+    const formType = (datePickerField as string).split("-")[0] as keyof typeof formStateMap;
+    const fieldName = (datePickerField as string).split("-")[1];
 
-      if (formType && fieldName && formStateMap[formType]) {
-        formStateMap[formType]((prev: any) => ({
-          ...prev,
-          [fieldName]: selectedDate,
-        }));
-      }
+    if (formType && fieldName && formStateMap[formType]) {
+      formStateMap[formType]((prev: any) => ({
+        ...prev,
+        [fieldName]: date,
+      }));
+    }
+  };
+
+  const getCurrentDateForField = () => {
+    switch (datePickerField) {
+      case "animal-dob":
+        return animalForm.dob;
+      case "health-date":
+        return healthRecordForm.date;
+      case "breeding-date":
+        return breedingRecordForm.date;
+      case "weight-date":
+        return weightRecordForm.date;
+      case "fattening-startDate":
+        return fatteningRecordForm.startDate;
+      case "dailyWeight-date":
+        return dailyWeightForm.date;
+      case "feedAdjustment-date":
+        return feedAdjustmentForm.date;
+      case "breeding-expectedDeliveryDate":
+        return breedingRecordForm.expectedDeliveryDate;
+      case "breeding-actualDeliveryDate":
+        return breedingRecordForm.actualDeliveryDate;
+      default:
+        return new Date();
     }
   };
 
@@ -1164,7 +1163,7 @@ const LivestockTab = ({ navigation }: any) => {
               value={healthRecordForm.medication}
               onChangeText={(text) =>
                 setHealthRecordForm({ ...healthRecordForm, medication: text })
-              }
+            }
             />
           </View>
 
@@ -2180,7 +2179,6 @@ const LivestockTab = ({ navigation }: any) => {
 
     switch (recordType) {
       case "editAnimal":
-        // Open the animal form in edit mode (primary action calls updateAnimal)
         return renderAnimalForm();
       case "health":
         return renderHealthRecordForm();
@@ -2226,10 +2224,6 @@ const LivestockTab = ({ navigation }: any) => {
     });
   };
 
-  // Add the renderAnimalDetails and other components here...
-  // (The rest of the code remains the same as in the previous version)
-
-  // Render a single animal item in the FlatList
   const renderAnimalItem = ({ item }: { item: Animal }) => (
     <TouchableOpacity
       style={styles.animalCard}
@@ -2305,7 +2299,6 @@ const LivestockTab = ({ navigation }: any) => {
   function renderAnimalDetails(): React.ReactNode {
     if (!selectedAnimal) return null;
 
-    // Helper for status badge color
     const getStatusBadgeStyle = (status: string) => {
       switch (status) {
         case "Active":
@@ -2321,7 +2314,6 @@ const LivestockTab = ({ navigation }: any) => {
       }
     };
 
-    // Helper for severity badge color
     const getSeverityStyle = (severity: string) => {
       switch (severity) {
         case "Critical":
@@ -2337,7 +2329,6 @@ const LivestockTab = ({ navigation }: any) => {
       }
     };
 
-    // Helper for section badge count
     const badge = (count: number) =>
       count > 0 ? (
         <View style={styles.badge}>
@@ -2345,22 +2336,15 @@ const LivestockTab = ({ navigation }: any) => {
         </View>
       ) : null;
 
-    // Health Records
     const healthRecords = selectedAnimal.healthRecords || [];
-    // Breeding Records
     const breedingRecords = selectedAnimal.breedingRecords || [];
-    // Weight Records
     const weightRecords = selectedAnimal.weightRecords || [];
-    // Fattening Records
     const fatteningRecords = selectedAnimal.fatteningRecords || [];
-
-    // Active Fattening Record
     const activeFattening = fatteningRecords.find((r) => r.isActive);
 
     return (
       <ScrollView>
       <View style={styles.detailsContainer}>
-        {/* Header Card */}
         <View style={styles.animalHeaderCard}>
           <View style={styles.animalHeaderMain}>
             <View>
@@ -2387,7 +2371,6 @@ const LivestockTab = ({ navigation }: any) => {
               <Text style={styles.statusBadgeText}>{selectedAnimal.status}</Text>
             </View>
           </View>
-          {/* Quick Actions */}
           <View style={styles.quickActions}>
             <TouchableOpacity
               style={styles.quickActionButton}
@@ -2407,7 +2390,6 @@ const LivestockTab = ({ navigation }: any) => {
                   initialWeight: "",
                   initialHealthNotes: "",
                 });
-                // Keep the current selection and open the edit form
                 setRecordType("editAnimal");
                 setModalVisible(true);
               }}
@@ -2425,7 +2407,6 @@ const LivestockTab = ({ navigation }: any) => {
               <Ionicons name="add-circle-outline" size={18} color="#4CAF50" />
               <Text style={styles.quickActionText}>Add Record</Text>
             </TouchableOpacity>
-            {/* New: Delete button */}
             <TouchableOpacity
               style={styles.quickActionButton}
               onPress={deleteAnimal}
@@ -2442,7 +2423,7 @@ const LivestockTab = ({ navigation }: any) => {
             </TouchableOpacity>
           </View>
         </View>
-        {/* Health Records Section */}
+
         <View style={styles.sectionCard}>
           <TouchableOpacity
             style={styles.sectionHeader}
@@ -2557,7 +2538,6 @@ const LivestockTab = ({ navigation }: any) => {
           )}
         </View>
 
-        {/* Breeding Records Section */}
         <View style={styles.sectionCard}>
           <TouchableOpacity
             style={styles.sectionHeader}
@@ -2671,7 +2651,6 @@ const LivestockTab = ({ navigation }: any) => {
           )}
         </View>
 
-        {/* Weight Records Section */}
         <View style={styles.sectionCard}>
           <TouchableOpacity
             style={styles.sectionHeader}
@@ -2703,7 +2682,6 @@ const LivestockTab = ({ navigation }: any) => {
                   .slice()
                   .reverse()
                   .map((rec, idx) => {
-                    // Get the original index to find the _id
                     const originalIndex = weightRecords.length - 1 - idx;
                     const recordId = weightRecords[originalIndex]._id;
                     
@@ -2757,7 +2735,6 @@ const LivestockTab = ({ navigation }: any) => {
           )}
         </View>
 
-        {/* Fattening Records Section */}
         <View style={styles.sectionCard}>
           <TouchableOpacity
             style={styles.sectionHeader}
@@ -2838,7 +2815,6 @@ const LivestockTab = ({ navigation }: any) => {
                             {rec.notes}
                           </Text>
                         ) : null}
-                        {/* Daily Weights */}
                         {rec.actualDailyGain && rec.actualDailyGain.length > 0 && (
                           <View style={{ marginTop: 8 }}>
                             <Text style={styles.recordLabel}>Daily Weights:</Text>
@@ -2855,7 +2831,6 @@ const LivestockTab = ({ navigation }: any) => {
                               ))}
                           </View>
                         )}
-                        {/* Feed Adjustments */}
                         {rec.feedAdjustments && rec.feedAdjustments.length > 0 && (
                           <View style={{ marginTop: 8 }}>
                             <Text style={styles.recordLabel}>Feed Adjustments:</Text>
@@ -2917,6 +2892,7 @@ const LivestockTab = ({ navigation }: any) => {
       </ScrollView>
     );
   }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#1a237e" barStyle="light-content" />
@@ -3053,28 +3029,18 @@ const LivestockTab = ({ navigation }: any) => {
         </View>
       </Modal>
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={
-            datePickerField === "animal-dob"
-              ? animalForm.dob
-              : datePickerField === "health-date"
-              ? healthRecordForm.date
-              : datePickerField === "breeding-date"
-              ? breedingRecordForm.date
-              : datePickerField === "weight-date"
-              ? weightRecordForm.date
-              : datePickerField === "fattening-startDate"
-              ? fatteningRecordForm.startDate
-              : datePickerField === "dailyWeight-date"
-              ? dailyWeightForm.date
-              : feedAdjustmentForm.date
-          }
-          mode="date"
-          display="default"
-          onChange={handleDateChange}
-        />
-      )}
+      <DatePicker
+        modal
+        open={showDatePicker}
+        date={getCurrentDateForField()}
+        onConfirm={(date) => {
+          handleDateChange(date);
+        }}
+        onCancel={() => {
+          setShowDatePicker(false);
+        }}
+        mode="date"
+      />
     </SafeAreaView>
   );
 };
@@ -3176,11 +3142,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
   },
   animalCardHeader: {
     flexDirection: "row",
@@ -3208,6 +3171,18 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     marginLeft: 8,
   },
+  statusActive: {
+    backgroundColor: "#4CAF50",
+  },
+  statusTreatment: {
+    backgroundColor: "#FF9800",
+  },
+  statusDeceased: {
+    backgroundColor: "#F44336",
+  },
+  statusQuarantined: {
+    backgroundColor: "#9C27B0",
+  },
   animalDetails: {
     marginBottom: 12,
   },
@@ -3233,18 +3208,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  statusActive: {
-    backgroundColor: "#4CAF50",
-  },
-  statusTreatment: {
-    backgroundColor: "#FF9800",
-  },
-  statusDeceased: {
-    backgroundColor: "#F44336",
-  },
-  statusQuarantined: {
-    backgroundColor: "#9C27B0",
-  },
   statusActiveText: {
     color: "#4CAF50",
   },
@@ -3267,11 +3230,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#1a237e",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
   loadingContainer: {
     flex: 1,
@@ -3461,6 +3419,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fafafa",
     borderRadius: 12,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
   },
   optionIconContainer: {
     width: 48,
@@ -3470,11 +3430,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
   },
   optionTextContainer: {
     flex: 1,
@@ -3489,7 +3446,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
   },
-  // Add any additional styles needed for the animal details view
   detailsContainer: {
     flex: 1,
     backgroundColor: "#f8f9fa",
@@ -3498,11 +3454,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     padding: 20,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
   },
   animalHeaderMain: {
     flexDirection: "row",
@@ -3559,11 +3512,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
   },
   sectionHeader: {
     flexDirection: "row",
@@ -3604,6 +3554,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderLeftWidth: 4,
     borderLeftColor: "#1a237e",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
   },
   recordHeader: {
     flexDirection: "row",
