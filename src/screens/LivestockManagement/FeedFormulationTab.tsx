@@ -16,6 +16,7 @@ type ItemInput = {
   ingredient: string;
   inclusionKg: string;
   costPerKgOverride?: string;
+  description?: string;
 };
 
 type Totals = { totalKg: number; totalCost: number; cp: number; me: number; ndf: number; ca: number; p: number };
@@ -36,12 +37,24 @@ type SavedFormulation = {
   target?: { weightKg?: number | null };
 };
 
+type PerfectSample = {
+  species: typeof speciesOptions[number];
+  stage: typeof stageOptions[number];
+  sample: Array<{
+    ingredient: string;
+    inclusionKg: number;
+    description: string;
+  }>;
+  description: string;
+  nutritionalTargets: any;
+};
+
 const FeedFormulationTab = () => {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [filteredIngredients, setFilteredIngredients] = useState<Ingredient[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'ingredients' | 'mix'>('ingredients');
+  const [activeTab, setActiveTab] = useState<'ingredients' | 'mix' | 'samples'>('ingredients');
 
   const [species, setSpecies] = useState<typeof speciesOptions[number]>('cattle');
   const [stage, setStage] = useState<typeof stageOptions[number]>('maintenance');
@@ -58,6 +71,8 @@ const FeedFormulationTab = () => {
   const [templates, setTemplates] = useState<SavedFormulation[]>([]);
   const [formulations, setFormulations] = useState<SavedFormulation[]>([]);
   const [loadingSaves, setLoadingSaves] = useState(false);
+  const [perfectSamples, setPerfectSamples] = useState<PerfectSample[]>([]);
+  const [loadingSamples, setLoadingSamples] = useState(false);
 
   // Filter ingredients based on search query
   useEffect(() => {
@@ -141,6 +156,36 @@ const FeedFormulationTab = () => {
     }
   };
 
+  const fetchPerfectSamples = async () => {
+    setLoadingSamples(true);
+    try {
+      const res = await fetch(`${Config.API_BASE_URL}/feed/perfect-samples`);
+      if (!res.ok) throw new Error('Failed to load perfect feed samples');
+      const data = await res.json();
+      
+      if (data.samples) {
+        // Convert the samples object into an array for easier rendering
+        const samplesArray: PerfectSample[] = [];
+        Object.keys(data.samples).forEach(species => {
+          Object.keys(data.samples[species]).forEach(stage => {
+            samplesArray.push({
+              species: species as typeof speciesOptions[number],
+              stage: stage as typeof stageOptions[number],
+              sample: data.samples[species][stage],
+              description: `Perfect ${stage} feed for ${species}`,
+              nutritionalTargets: getRequirements({ species, stage, weightKg: null })
+            });
+          });
+        });
+        setPerfectSamples(samplesArray);
+      }
+    } catch (e: any) {
+      console.warn('fetchPerfectSamples error:', e?.message || e);
+    } finally {
+      setLoadingSamples(false);
+    }
+  };
+
   // Delete a saved formulation/template
   const deleteFormulationById = async (id: string) => {
     const token = await getAuthToken();
@@ -180,6 +225,7 @@ const FeedFormulationTab = () => {
   useEffect(() => {
     fetchIngredients();
     fetchFormulations();
+    fetchPerfectSamples();
   }, []);
 
   const addItem = (ingredient: Ingredient) => {
@@ -190,6 +236,82 @@ const FeedFormulationTab = () => {
 
   const removeItem = (id: string) => {
     setItems(prev => prev.filter(i => i.ingredient !== id));
+  };
+
+  const loadPerfectSample = async (sample: PerfectSample) => {
+    setSpecies(sample.species);
+    setStage(sample.stage);
+    
+    // Convert sample items to the format needed for the mix
+    const sampleItems: ItemInput[] = await Promise.all(
+      sample.sample.map(async (item) => {
+        // Find the ingredient ID by name
+        const ingredient = ingredients.find(ing => 
+          ing.name.toLowerCase().includes(item.ingredient.toLowerCase())
+        );
+        
+        return {
+          ingredient: ingredient?._id || item.ingredient,
+          inclusionKg: item.inclusionKg.toString(),
+          costPerKgOverride: '',
+          description: item.description
+        };
+      })
+    );
+
+    setItems(sampleItems.filter(item => item.ingredient));
+    setActiveTab('mix');
+    setAnalysis(null);
+    
+    Alert.alert('Sample Loaded', `Perfect ${sample.stage} feed for ${sample.species} loaded. Adjust quantities as needed.`);
+  };
+
+  const createFormulationFromSample = async (sample: PerfectSample) => {
+    const token = await getAuthToken();
+    if (!token) {
+      Alert.alert('Login required', 'Please log in to save formulations.');
+      return;
+    }
+
+    const name = `Perfect ${sample.stage} Feed - ${sample.species}`;
+
+    const payload = {
+      name,
+      species: sample.species,
+      stage: sample.stage,
+      target: { weightKg: Number(weightKg || 0) || null },
+      isTemplate: true,
+      items: sample.sample.map(item => ({
+        ingredient: item.ingredient, // This should be the ID, but we'll need to map names to IDs
+        inclusionKg: item.inclusionKg,
+      })),
+      notes: `Perfect feed sample for ${sample.species} ${sample.stage}`,
+    };
+
+    setLoading(true);
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      headers.Authorization = `Bearer ${token}`;
+      headers['x-access-token'] = token;
+      headers['x-auth-token'] = token;
+
+      const res = await fetch(`${Config.API_BASE_URL}/feed/formulations/from-sample`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Save failed (${res.status})`);
+      }
+      Alert.alert('Saved', 'Perfect feed template saved successfully.');
+      await fetchFormulations();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Save failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const analyze = async () => {
@@ -360,6 +482,37 @@ const FeedFormulationTab = () => {
     setActiveTab('mix');
     setAnalysis(null);
   }
+
+  // Helper function to get requirements (mimics backend logic)
+  const getRequirements = ({ species, stage, weightKg }: { species: string; stage: string; weightKg: number | null }) => {
+    const ranges = {
+      cattle: {
+        fattening: { cp: [12, 14], me: [10.5, 11.5], ndf: [25, 35], ca: [0.5, 0.8], p: [0.35, 0.5] },
+        dairy: { cp: [16, 18], me: [11, 12], ndf: [28, 34], ca: [0.8, 1.0], p: [0.45, 0.6] },
+        breeding: { cp: [11, 13], me: [9.5, 11], ndf: [30, 38], ca: [0.5, 0.8], p: [0.35, 0.55] },
+      },
+      sheep: {
+        fattening: { cp: [12, 14], me: [10, 11], ndf: [28, 35], ca: [0.5, 0.8], p: [0.35, 0.5] },
+        dairy: { cp: [15, 18], me: [10, 12], ndf: [28, 34], ca: [0.7, 1.0], p: [0.4, 0.6] },
+        breeding: { cp: [11, 13], me: [9.5, 11], ndf: [30, 38], ca: [0.5, 0.8], p: [0.35, 0.55] },
+      },
+      goat: {
+        fattening: { cp: [12, 14], me: [10, 11], ndf: [28, 35], ca: [0.5, 0.8], p: [0.35, 0.5] },
+        dairy: { cp: [15, 18], me: [10.5, 12], ndf: [28, 34], ca: [0.7, 1.0], p: [0.4, 0.6] },
+        breeding: { cp: [11, 13], me: [9.5, 11], ndf: [30, 38], ca: [0.5, 0.8], p: [0.35, 0.55] },
+      },
+    };
+    
+    const sp = (ranges[species as keyof typeof ranges] || ranges.cattle)[stage as keyof typeof ranges.cattle] || ranges.cattle.fattening;
+    return {
+      cp: { min: sp.cp[0], max: sp.cp[1] },
+      me: { min: sp.me[0], max: sp.me[1] },
+      ndf: { min: sp.ndf[0], max: sp.ndf[1] },
+      ca: { min: sp.ca[0], max: sp.ca[1] },
+      p: { min: sp.p[0], max: sp.p[1] },
+    };
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -431,6 +584,14 @@ const FeedFormulationTab = () => {
               Feed Mix ({items.length})
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'samples' && styles.tabActive]}
+            onPress={() => setActiveTab('samples')}
+          >
+            <Text style={[styles.tabText, activeTab === 'samples' && styles.tabTextActive]}>
+              Perfect Samples
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {activeTab === 'ingredients' ? (
@@ -495,7 +656,7 @@ const FeedFormulationTab = () => {
               />
             )}
           </View>
-        ) : (
+        ) : activeTab === 'mix' ? (
           /* Feed Mix Composition */
           <View style={styles.card}>
             <View style={[styles.cardHeader, styles.spaceBetween]}>
@@ -515,7 +676,7 @@ const FeedFormulationTab = () => {
               <View style={styles.emptyMix}>
                 <MaterialIcons name="info" size={24} color="#9e9e9e" />
                 <Text style={styles.emptyMixText}>No ingredients added yet</Text>
-                <Text style={styles.emptyMixSubtext}>Select ingredients from the Ingredients tab</Text>
+                <Text style={styles.emptyMixSubtext}>Select ingredients from the Ingredients tab or load a perfect sample</Text>
               </View>
             ) : (
               <>
@@ -525,6 +686,9 @@ const FeedFormulationTab = () => {
                     <View key={it.ingredient} style={styles.mixRow}>
                       <View style={styles.mixInfo}>
                         <Text style={styles.mixName}>{ing?.name || 'Ingredient'}</Text>
+                        {it.description && (
+                          <Text style={styles.sampleDescription}>{it.description}</Text>
+                        )}
                         <View style={styles.nutrientRow}>
                           <Text style={styles.mixSub}>CP: {ing?.nutrients.cp ?? 0}%</Text>
                           <Text style={styles.mixSub}>ME: {ing?.nutrients.me ?? 0}</Text>
@@ -591,10 +755,87 @@ const FeedFormulationTab = () => {
               </>
             )}
           </View>
+        ) : (
+          /* Perfect Feed Samples */
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <MaterialIcons name="star" size={20} color="#FFA000" />
+              <Text style={styles.cardTitle}>Perfect Feed Samples</Text>
+            </View>
+            
+            <Text style={styles.sampleIntro}>
+              Pre-optimized feed formulations for different species and production stages. 
+              These samples provide balanced nutrition based on best practices.
+            </Text>
+
+            {loadingSamples ? (
+              <ActivityIndicator style={styles.loader} color="#2e7d32" />
+            ) : perfectSamples.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <MaterialIcons name="star-outline" size={40} color="#e0e0e0" />
+                <Text style={styles.emptyText}>No perfect samples available</Text>
+                <Text style={styles.emptySubtext}>Check your connection and try again</Text>
+              </View>
+            ) : (
+              <View style={styles.samplesContainer}>
+                {perfectSamples.map((sample, index) => (
+                  <View key={index} style={styles.sampleCard}>
+                    <View style={styles.sampleHeader}>
+                      <View>
+                        <Text style={styles.sampleTitle}>
+                          {sample.species.charAt(0).toUpperCase() + sample.species.slice(1)} - {sample.stage}
+                        </Text>
+                        <Text style={styles.sampleSubtitle}>
+                          {sample.sample.length} ingredients • Optimized formulation
+                        </Text>
+                      </View>
+                      <View style={styles.speciesBadge}>
+                        <Text style={styles.speciesBadgeText}>
+                          {sample.species.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.sampleIngredients}>
+                      <Text style={styles.ingredientsLabel}>Ingredients:</Text>
+                      {sample.sample.slice(0, 3).map((item, idx) => (
+                        <Text key={idx} style={styles.ingredientItem}>
+                          • {item.ingredient}: {item.inclusionKg}kg
+                        </Text>
+                      ))}
+                      {sample.sample.length > 3 && (
+                        <Text style={styles.moreIngredients}>
+                          +{sample.sample.length - 3} more ingredients
+                        </Text>
+                      )}
+                    </View>
+
+                    <View style={styles.sampleActions}>
+                      <TouchableOpacity 
+                        style={[styles.sampleButton, styles.loadButton]}
+                        onPress={() => loadPerfectSample(sample)}
+                      >
+                        <MaterialIcons name="file-download" size={16} color="white" />
+                        <Text style={styles.sampleButtonText}>Load Sample</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                        style={[styles.sampleButton, styles.saveButton]}
+                        onPress={() => createFormulationFromSample(sample)}
+                      >
+                        <MaterialIcons name="save" size={16} color="white" />
+                        <Text style={styles.sampleButtonText}>Save as Template</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
         )}
 
-        {/* Action Buttons */}
-        {items.length > 0 && (
+        {/* Action Buttons - Only show for mix tab */}
+        {activeTab === 'mix' && items.length > 0 && (
           <View style={styles.buttonRow}>
             <TouchableOpacity
               onPress={analyze}
@@ -862,7 +1103,8 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontWeight: '500',
-    color: '#7f8c8d'
+    color: '#7f8c8d',
+    fontSize: 12
   },
   tabTextActive: {
     color: '#2e7d32',
@@ -1010,6 +1252,12 @@ const styles = StyleSheet.create({
     color: '#7f8c8d',
     fontSize: 10,
     marginRight: 8
+  },
+  sampleDescription: {
+    color: '#FFA000',
+    fontSize: 10,
+    fontStyle: 'italic',
+    marginBottom: 4
   },
   inputGroup: {
     flexDirection: 'row',
@@ -1181,6 +1429,99 @@ const styles = StyleSheet.create({
   iconBtnDanger: {
     backgroundColor: '#e53935'
   },
+  // Perfect Samples Styles
+  sampleIntro: {
+    color: '#7f8c8d',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+    textAlign: 'center'
+  },
+  samplesContainer: {
+    gap: 12
+  },
+  sampleCard: {
+    borderWidth: 1,
+    borderColor: '#FFE082',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#FFFDE7'
+  },
+  sampleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8
+  },
+  sampleTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50'
+  },
+  sampleSubtitle: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    marginTop: 2
+  },
+  speciesBadge: {
+    backgroundColor: '#2e7d32',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  speciesBadgeText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 12
+  },
+  sampleIngredients: {
+    marginBottom: 12
+  },
+  ingredientsLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#34495e',
+    marginBottom: 4
+  },
+  ingredientItem: {
+    fontSize: 11,
+    color: '#7f8c8d',
+    marginLeft: 8
+  },
+  moreIngredients: {
+    fontSize: 10,
+    color: '#bdc3c7',
+    fontStyle: 'italic',
+    marginLeft: 8,
+    marginTop: 2
+  },
+  sampleActions: {
+    flexDirection: 'row',
+    gap: 8
+  },
+  sampleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    gap: 4
+  },
+  loadButton: {
+    backgroundColor: '#2e7d32'
+  },
+  saveButton: {
+    backgroundColor: '#1976d2'
+  },
+  sampleButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '500'
+  }
 });
 
 export default FeedFormulationTab;

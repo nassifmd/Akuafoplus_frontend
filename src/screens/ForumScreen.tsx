@@ -14,7 +14,7 @@ import {
   StatusBar,
   Image,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, CommonActions } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
@@ -68,6 +68,20 @@ const ForumScreen = () => {
   });
   const alertRef = useRef<AlertPro | null>(null);
   const navigation = useNavigation<ForumScreenNavigationProp>();
+
+  const handleBackPress = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      // If can't go back, navigate to Dashboard
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Dashboard' }],
+        })
+      );
+    }
+  };
 
   useEffect(() => {
     const checkAuthStatus = async () => {
@@ -476,6 +490,12 @@ const ForumScreen = () => {
       {/* Modern Header with Search */}
       <View style={styles.headerContainer}>
         <View style={styles.header}>
+          {/* <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBackPress}
+            >
+              <MaterialIcons name="arrow-back" size={24} color="#1E293B" />
+          </TouchableOpacity> */}
           <View style={styles.headerLeft}>
             <Text style={styles.headerTitle}>Community Forum</Text>
             {userInfo?.name && (

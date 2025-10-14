@@ -1,5 +1,5 @@
 const Config = {
-  API_BASE_URL: 'http://192.168.2.133:5001/api',
+  API_BASE_URL: 'https://akuafoplus-app.agricconnect.org/api',
 };
 
 export default Config;
