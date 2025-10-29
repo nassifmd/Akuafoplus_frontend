@@ -111,7 +111,6 @@ const LivestockTab = ({ navigation }: any) => {
   const [selectedAnimal, setSelectedAnimal] = useState<Animal | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [recordType, setRecordType] = useState("");
-  const [breedRecommendation, setBreedRecommendation] = useState(null);
   const [viewMode, setViewMode] = useState("list");
   const [expandedSections, setExpandedSections] = useState({
     health: false,

@@ -17,8 +17,9 @@ import { useNavigation, NavigationProp } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios, { AxiosError } from "axios";
 import Config from "../Config/config";
-import MaterialIcons from "react-native-vector-icons/MaterialIcons";
+import MaterialIcons from "@react-native-vector-icons/material-icons";
 import LinearGradient from 'react-native-linear-gradient';
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type RootStackParamList = {
   HomeScreen: undefined;
@@ -83,8 +84,6 @@ const DEFAULT_WEATHER: WeatherData = {
   solarRadiation: 450,
   forecastDate: new Date().toISOString().split("T")[0],
 };
-
-const { width } = Dimensions.get('window');
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -444,7 +443,7 @@ const HomeScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
       <ScrollView 
         contentContainerStyle={styles.container} 
         showsVerticalScrollIndicator={false}
@@ -457,9 +456,9 @@ const HomeScreen: React.FC = () => {
           />
         }
       >
-        {/* Header Section */}
-        <Animated.View style={[styles.header, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-          <View>
+        {/* Header Section - COMPLETELY REVISED */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
             <Text style={styles.greeting}>{getGreeting()},</Text>
             <Text style={styles.userName}>{userName}</Text>
           </View>
@@ -468,7 +467,7 @@ const HomeScreen: React.FC = () => {
             onPress={() => navigation.navigate("SubscriptionScreen")}
             activeOpacity={0.8}
             style={[
-              styles.upgradeButtonContainer,
+              styles.upgradeButton,
               subscriptionPlan === "premium" && styles.premiumBadge
             ]}
           >
@@ -478,7 +477,7 @@ const HomeScreen: React.FC = () => {
                   ? ['#FFD700', '#FFA500']
                   : ['#667eea', '#764ba2']
               }
-              style={styles.upgradeButton}
+              style={styles.upgradeButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
@@ -487,13 +486,12 @@ const HomeScreen: React.FC = () => {
                 size={16} 
                 color="#fff" 
               />
-              <Text style={styles.upgradeButtonText}>
-                {subscriptionPlan === "premium" ? "Premium" : "Upgrade Plan"}
+              <Text style={styles.upgradeButtonText} numberOfLines={1}>
+                {subscriptionPlan === "premium" ? "Premium" : "Upgrade"}
               </Text>
             </LinearGradient>
           </TouchableOpacity>
-        </Animated.View>
-
+        </View>
 
         {/* Weather Section */}
         <Animated.View style={[styles.weatherContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
@@ -581,14 +579,6 @@ const HomeScreen: React.FC = () => {
                   <Text style={styles.weatherDataValue}>{weatherData[0].solarRadiation?.toFixed(1)} W/m²</Text>
                 </View>
               </View>
-              
-              {/* <TouchableOpacity 
-                style={styles.weatherDetailsButton}
-                onPress={() => console.log("View detailed forecast")}
-              >
-                <Text style={styles.weatherDetailsText}>View detailed forecast</Text>
-                <MaterialIcons name="chevron-right" size={20} color="#4A6FA5" />
-              </TouchableOpacity> */}
             </Animated.View>
           )}
         </Animated.View>
@@ -619,25 +609,6 @@ const HomeScreen: React.FC = () => {
                 <Text style={styles.quickActionSubtext}>Connect with experts</Text>
               </LinearGradient>
             </TouchableOpacity>
-            
-            {/* <TouchableOpacity
-              onPress={() => navigation.navigate("FarmlandScreen")}
-              activeOpacity={0.9}
-              style={styles.quickActionTouchable}
-            >
-              <LinearGradient
-                colors={['#fa709a', '#fee140']}
-                style={styles.quickActionButton}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <View style={styles.quickActionIcon}>
-                  <MaterialIcons name="landscape" size={32} color="#fff" />
-                </View>
-                <Text style={styles.quickActionText}>Farm Land</Text>
-                <Text style={styles.quickActionSubtext}>Manage your fields</Text>
-              </LinearGradient>
-            </TouchableOpacity> */}
           </View>
         </Animated.View>
 
@@ -645,7 +616,7 @@ const HomeScreen: React.FC = () => {
         {renderAdvertisementCarousel()}
 
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -659,11 +630,17 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
+  // COMPLETELY REVISED HEADER STYLES
   header: {
-    marginBottom: 30,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    marginBottom: 30,
+    width: '100%',
+  },
+  headerLeft: {
+    flex: 1,
+    marginRight: 12,
   },
   greeting: {
     fontSize: 16,
@@ -676,26 +653,36 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1E293B",
   },
-  upgradeButtonContainer: {
+  upgradeButton: {
     borderRadius: 20,
     overflow: 'hidden',
+    minWidth: 100,
+    height: 40,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
-  premiumBadge: {
-    borderWidth: 2,
-    borderColor: '#FFD700',
-  },
-  upgradeButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+  upgradeButtonGradient: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 16,
   },
   upgradeButtonText: {
     color: "#fff",
     fontWeight: "600",
     fontSize: 14,
     marginLeft: 6,
+  },
+  premiumBadge: {
+    borderWidth: 2,
+    borderColor: '#FFD700',
   },
   quickActionsContainer: {
     backgroundColor: "#fff",
@@ -929,19 +916,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#1E293B",
-  },
-  weatherDetailsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    marginTop: 8,
-  },
-  weatherDetailsText: {
-    color: "#4A6FA5",
-    fontWeight: "600",
-    fontSize: 14,
-    marginRight: 4,
   },
 });
 
